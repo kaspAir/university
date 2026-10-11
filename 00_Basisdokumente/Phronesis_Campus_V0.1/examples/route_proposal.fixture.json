@@ -1,0 +1,17 @@
+{
+  "task_id": "fixture-task-1",
+  "selected_deployment_id": "fixture-deployment-a",
+  "rationale": "Synthetic route proposal for a contract example. Select one qualified model; reserve the other for review.",
+  "evidence_refs": [
+    "fixture-eval-a"
+  ],
+  "alternatives": [
+    {
+      "deployment_id": "fixture-deployment-b",
+      "reason_not_selected": "Retained as a distinct reviewer in this fixture."
+    }
+  ],
+  "uncertainties": [
+    "Fixture records do not establish real model competence."
+  ]
+}

@@ -1,0 +1,15 @@
+stateDiagram-v2
+  [*] --> NeedRecorded
+  NeedRecorded --> Reused: existing qualified agent/skill fits
+  NeedRecorded --> Candidate: documented gap
+  Candidate --> IsolatedEvaluation
+  IsolatedEvaluation --> Rework: criteria not met
+  Rework --> Candidate: new version
+  IsolatedEvaluation --> Qualified: distinct reviewer + fixed checks
+  Qualified --> Active: trusted gate + scoped grant
+  Active --> Dormant: no current task
+  Dormant --> Active: still qualified
+  Active --> Blocked: revoked qualification or integrity hold
+  Active --> Candidate: proposed new version
+  Blocked --> Archived
+  Archived --> [*]

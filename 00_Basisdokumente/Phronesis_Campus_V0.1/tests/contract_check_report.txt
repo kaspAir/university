@@ -1,0 +1,16 @@
+PASS schema: model_catalog
+PASS schema: task_need
+PASS schema: routing_decision
+PASS schema: agent_profile
+PASS schema: skill_manifest
+PASS schema: route_proposal
+PASS disabled configuration template
+PASS fixture relations
+PASS rejects: data export
+PASS rejects: disabled model
+PASS rejects: unknown capability
+PASS rejects: alias diversity
+PASS rejects: context overflow
+PASS rejects: unknown evidence
+PASS rejects: producer as reviewer
+15 contract checks passed; no provider, sandbox or campus acceptance tests executed.

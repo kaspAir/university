@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+reports/
+
+# Secrets / lokale Konfiguration
+.env
+*.env
+*.pem
+*.key
+
+# Betriebssystem / Editoren
+desktop.ini
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
+
+# Lokale Büro-Sperrdateien
+~$*
+
+# Duplikat des Ordners 00_Basisdokumente, nicht versionieren
+00_Basisdokumente.zip
+
+# Local runtime data and virtualenv
+var/
+.venv/
+reports/

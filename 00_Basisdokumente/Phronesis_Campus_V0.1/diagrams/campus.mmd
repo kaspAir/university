@@ -1,0 +1,18 @@
+flowchart TB
+  U[Research director / Browser] --> API[Campus API: identity and commands]
+  API --> CORE[Policy + Budget + Registry + Audit]
+  CORE --> WF[Durable workflows / Temporal]
+  WF --> AG[Specialized agent runs]
+  AG --> SEL[Task router: shortlist and reasoned selection]
+  SEL --> GATE[Trusted route authorization]
+  GATE --> LLM[LLM Gateway / approved adapters]
+  LLM --> EXT[Configured external or local models]
+  AG --> TB[Tool Broker]
+  TB --> NET[Internet service / controlled egress]
+  NET --> WEB[Public and licensed sources]
+  TB --> SB[Isolated execution controller]
+  SB --> JOB[Disposable research sandbox]
+  CORE --> DATA[(Postgres + artifact store)]
+  AG --> REVIEW[Distinct review instances]
+  REVIEW --> SEL
+  REVIEW --> DATA

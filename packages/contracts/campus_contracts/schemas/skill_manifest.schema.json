@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/skill_manifest.schema.json",
+  "title": "skill_manifest",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trigger": {
+      "type": "string",
+      "minLength": 1
+    },
+    "instructions_path": {
+      "const": "instructions.md"
+    },
+    "input_schema_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output_schema_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_tool_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "dependency_version_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "allowed_data_labels": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "public",
+          "internal",
+          "confidential",
+          "personal"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "origin_need_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evaluation_suite_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "qualification_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "qualified_combination_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "operating_status": {
+      "enum": [
+        "candidate",
+        "active",
+        "blocked",
+        "retired"
+      ]
+    },
+    "package_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "purpose",
+    "trigger",
+    "instructions_path",
+    "input_schema_ref",
+    "output_schema_ref",
+    "requested_tool_scopes",
+    "dependency_version_refs",
+    "allowed_data_labels",
+    "limitations",
+    "origin_need_ref",
+    "evaluation_suite_ref",
+    "qualification_refs",
+    "qualified_combination_refs",
+    "operating_status",
+    "package_sha256"
+  ],
+  "additionalProperties": false
+}

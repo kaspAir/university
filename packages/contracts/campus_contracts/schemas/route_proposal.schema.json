@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/route_proposal.schema.json",
+  "title": "route_proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "selected_deployment_id",
+    "rationale",
+    "evidence_refs",
+    "alternatives",
+    "uncertainties"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selected_deployment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "alternatives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deployment_id",
+          "reason_not_selected"
+        ],
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason_not_selected": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

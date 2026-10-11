@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "id": "fixture-route-1",
+  "task_id": "fixture-task-1",
+  "catalog_revision": "fixture-catalog-1",
+  "routing_policy_ref": "fixture-policy-1",
+  "selection_mode": "fixture",
+  "selector_model_ref": null,
+  "selected_deployment_id": "fixture-deployment-a",
+  "selected_canonical_model_id": "fixture/model-a@1",
+  "candidate_assessments": [
+    {
+      "deployment_id": "fixture-deployment-a",
+      "eligible": true,
+      "exclusion_reasons": [],
+      "evidence_refs": [
+        "fixture-eval-a"
+      ],
+      "note": "Synthetic eligible candidate for a contract test."
+    },
+    {
+      "deployment_id": "fixture-deployment-b",
+      "eligible": true,
+      "exclusion_reasons": [],
+      "evidence_refs": [
+        "fixture-eval-b"
+      ],
+      "note": "Synthetic distinct review candidate."
+    }
+  ],
+  "rationale": "Fixture only: choose A for production and B for independent-model review. This is not an empirical model comparison.",
+  "required_review": true,
+  "review_deployment_id": "fixture-deployment-b",
+  "reservation_ref": "fixture-reservation-1",
+  "pricing_snapshot_ref": "fixture-zero-cost",
+  "created_at": "2026-10-11T12:00:00Z",
+  "state": "authorized"
+}

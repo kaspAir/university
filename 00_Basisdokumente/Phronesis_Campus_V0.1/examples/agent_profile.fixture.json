@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "id": "fixture-ai-researcher",
+  "version": "1",
+  "institute_id": "applied-research",
+  "primary_specialization": "AI research methodology",
+  "jurisdictions": [],
+  "languages": [
+    "de-CH",
+    "en-GB"
+  ],
+  "scope": "Research source analysis on public test materials.",
+  "out_of_scope": [
+    "human subject studies",
+    "public release"
+  ],
+  "need_record_ref": "fixture-need-1",
+  "creation_reason": "A contract-test profile, not an operational specialist.",
+  "alternatives_considered": [
+    "reuse an existing source analysis profile"
+  ],
+  "skill_version_refs": [
+    "fixture-source-analysis@1"
+  ],
+  "model_policy_ref": "fixture-policy-1",
+  "requested_tool_scopes": [
+    "sources.read",
+    "claims.propose"
+  ],
+  "data_labels": [
+    "public"
+  ],
+  "qualification_refs": [],
+  "operating_status": "planned",
+  "qualification_status": "not_evaluated"
+}

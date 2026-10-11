@@ -1,0 +1,11 @@
+# Direct runtime dependencies. requirements.txt is the frozen result of an actual, tested install.
+fastapi
+uvicorn[standard]
+pydantic>=2
+SQLAlchemy>=2
+alembic
+psycopg[binary]
+argon2-cffi
+PyYAML
+jsonschema
+python-multipart

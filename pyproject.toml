@@ -1,0 +1,33 @@
+[project]
+name = "phronesis-campus"
+version = "0.1.0"
+description = "Phronesis-Forschungscampus – autonomer Forschungscampus mit kontrolliertem Kern (S0)"
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "packages/domain",
+  "packages/contracts",
+  "packages/infrastructure",
+  "services/llm_gateway",
+  "apps/api",
+]
+testpaths = ["tests"]
+markers = [
+  "integration: needs a reachable PostgreSQL (CAMPUS_TEST_DATABASE_URL)",
+]
+filterwarnings = ["error::DeprecationWarning:campus_.*"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+src = ["packages/domain", "packages/contracts", "packages/infrastructure", "services/llm_gateway", "apps/api"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
+# B008: FastAPI's Depends() in parameter defaults is the framework's documented pattern.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011", "B017"]

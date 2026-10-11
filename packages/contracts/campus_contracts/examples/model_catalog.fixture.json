@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "revision": "fixture-catalog-1",
+  "purpose": "test_fixture",
+  "deployments": [
+    {
+      "id": "fixture-deployment-a",
+      "provider_id": "fixture-provider-a",
+      "adapter": "mock",
+      "enabled": true,
+      "provider_model_id": "fixture-native-a",
+      "canonical_model_id": "fixture/model-a@1",
+      "model_family": "fixture-family-a",
+      "shared_base_id": null,
+      "api_base": null,
+      "secret_ref": null,
+      "version_mode": "fixed",
+      "capabilities": {
+        "text_input": "supported",
+        "vision_input": "unsupported",
+        "tool_calling": "supported",
+        "structured_output": "supported",
+        "streaming": "supported",
+        "context_tokens": 32000,
+        "output_tokens": 8000
+      },
+      "allowed_data_labels": [
+        "public"
+      ],
+      "allowed_tool_scopes": [
+        "sources.read",
+        "claims.propose"
+      ],
+      "processing_profile_ref": "fixture-public-only",
+      "pricing_ref": "fixture-zero-cost",
+      "qualification_refs": [
+        "fixture-eval-a"
+      ],
+      "health": "available"
+    },
+    {
+      "id": "fixture-deployment-b",
+      "provider_id": "fixture-provider-b",
+      "adapter": "mock",
+      "enabled": true,
+      "provider_model_id": "fixture-native-b",
+      "canonical_model_id": "fixture/model-b@1",
+      "model_family": "fixture-family-b",
+      "shared_base_id": null,
+      "api_base": null,
+      "secret_ref": null,
+      "version_mode": "fixed",
+      "capabilities": {
+        "text_input": "supported",
+        "vision_input": "unsupported",
+        "tool_calling": "supported",
+        "structured_output": "supported",
+        "streaming": "supported",
+        "context_tokens": 32000,
+        "output_tokens": 8000
+      },
+      "allowed_data_labels": [
+        "public"
+      ],
+      "allowed_tool_scopes": [
+        "sources.read",
+        "claims.propose"
+      ],
+      "processing_profile_ref": "fixture-public-only",
+      "pricing_ref": "fixture-zero-cost",
+      "qualification_refs": [
+        "fixture-eval-b"
+      ],
+      "health": "available"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "checked_at": "2026-10-11",
+  "sources": {
+    "T1": "https://docs.temporal.io/develop/python",
+    "T2": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview",
+    "T3": "https://developers.openai.com/api/docs/guides/function-calling",
+    "T4": "https://ai.google.dev/gemini-api/docs/function-calling",
+    "T5": [
+      "https://docs.litellm.ai/docs/routing",
+      "https://docs.litellm.ai/docs/proxy/architecture"
+    ],
+    "T6": "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html",
+    "T7": "https://gvisor.dev/docs/",
+    "T8": "https://agentskills.io/specification",
+    "T9": "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+    "T10": "https://www.postgresql.org/docs/current/explicit-locking.html",
+    "T11": "https://fastapi.tiangolo.com/"
+  }
+}

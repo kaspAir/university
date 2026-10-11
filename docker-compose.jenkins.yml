@@ -1,0 +1,27 @@
+# Eigener Jenkins für den Phronesis-Forschungscampus.
+# Start:   docker compose -f docker-compose.jenkins.yml up -d --build
+# Stopp:   docker compose -f docker-compose.jenkins.yml down        (Daten bleiben im Volume)
+# UI:      http://localhost:8083
+#
+# Port 8083, weil 8080 (HERMES PIA) und 8082 (ein weiteres Produkt) auf diesem Rechner
+# bereits von anderen Jenkins-Instanzen belegt sind. Der Agent-Port 50000 wird nicht
+# veröffentlicht, solange keine Build-Agents eingesetzt werden.
+name: university
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    container_name: university-jenkins
+    ports:
+      - "8083:8080"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "0"
+    restart: unless-stopped
+
+volumes:
+  jenkins_data:

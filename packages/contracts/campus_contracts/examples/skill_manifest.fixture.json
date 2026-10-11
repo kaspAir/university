@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "id": "fixture-source-analysis",
+  "version": "1",
+  "purpose": "Contract illustration only.",
+  "trigger": "A source-analysis task is assigned.",
+  "instructions_path": "instructions.md",
+  "input_schema_ref": "source-analysis-input@1",
+  "output_schema_ref": "source-analysis-output@1",
+  "requested_tool_scopes": [
+    "sources.read"
+  ],
+  "dependency_version_refs": [],
+  "allowed_data_labels": [
+    "public"
+  ],
+  "limitations": [
+    "Not a deployable skill; the package hash is a fixture."
+  ],
+  "origin_need_ref": "fixture-need-1",
+  "evaluation_suite_ref": "fixture-suite-1",
+  "qualification_refs": [],
+  "qualified_combination_refs": [],
+  "operating_status": "candidate",
+  "package_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

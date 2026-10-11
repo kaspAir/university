@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/routing_decision.schema.json",
+  "title": "routing_decision",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "catalog_revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "routing_policy_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selection_mode": {
+      "enum": [
+        "llm",
+        "deterministic_fallback",
+        "fixture"
+      ]
+    },
+    "selector_model_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "selected_deployment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selected_canonical_model_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "exclusion_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "deployment_id",
+          "eligible",
+          "exclusion_reasons",
+          "evidence_refs",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_review": {
+      "type": "boolean"
+    },
+    "review_deployment_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reservation_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pricing_snapshot_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "state": {
+      "enum": [
+        "proposed",
+        "authorized",
+        "rejected",
+        "executed"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "task_id",
+    "catalog_revision",
+    "routing_policy_ref",
+    "selection_mode",
+    "selector_model_ref",
+    "selected_deployment_id",
+    "selected_canonical_model_id",
+    "candidate_assessments",
+    "rationale",
+    "required_review",
+    "review_deployment_id",
+    "reservation_ref",
+    "pricing_snapshot_ref",
+    "created_at",
+    "state"
+  ],
+  "additionalProperties": false
+}

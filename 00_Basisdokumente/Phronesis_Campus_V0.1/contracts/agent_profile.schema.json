@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/agent_profile.schema.json",
+  "title": "agent_profile",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "institute_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_specialization": {
+      "type": "string",
+      "minLength": 1
+    },
+    "jurisdictions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "need_record_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "creation_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "alternatives_considered": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "skill_version_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "model_policy_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_tool_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "data_labels": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "public",
+          "internal",
+          "confidential",
+          "personal"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "qualification_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "operating_status": {
+      "enum": [
+        "planned",
+        "in_review",
+        "active",
+        "dormant",
+        "blocked",
+        "archived"
+      ]
+    },
+    "qualification_status": {
+      "enum": [
+        "not_evaluated",
+        "experimental_limited",
+        "task_qualified"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "institute_id",
+    "primary_specialization",
+    "jurisdictions",
+    "languages",
+    "scope",
+    "out_of_scope",
+    "need_record_ref",
+    "creation_reason",
+    "alternatives_considered",
+    "skill_version_refs",
+    "model_policy_ref",
+    "requested_tool_scopes",
+    "data_labels",
+    "qualification_refs",
+    "operating_status",
+    "qualification_status"
+  ],
+  "additionalProperties": false
+}

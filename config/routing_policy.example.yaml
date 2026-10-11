@@ -1,0 +1,36 @@
+schema_version: '1.0'
+revision: routing-policy-proposal-1
+activation_state: draft
+selection_mode: llm_proposal_validated_by_core
+bootstrap_selector_deployment_ids: []
+hard_rules:
+  require_enabled: true
+  require_data_authorization: true
+  unknown_required_capability: exclude
+  unknown_review_model_identity: exclude
+  qualified_combinations_required: true
+  substantive_review_different_canonical_model: true
+  prefer_distinct_provider: true
+  reserve_required_review_budget: true
+  hidden_gateway_fallbacks: false
+selection_criteria:
+- task_qualification_evidence
+- documented_error_profile
+- uncertainty
+- estimated_total_cost_including_review
+- estimated_latency
+limits:
+  max_selector_calls_per_attempt: 1
+  max_route_replans_per_task: null
+  max_delegation_depth: null
+  max_concurrent_runs: null
+  max_task_cost: null
+  max_project_cost: null
+  currency: null
+fallback:
+  technical_failure: replan_under_same_constraints
+  protected_refusal: do_not_route_around_safeguards
+  no_eligible_model: wait_or_request_scoped_decision
+  outcome_unknown: reconcile_before_retry
+note: Null operating limits must be set before real autonomous execution. Ranking
+  weights are not assumed.

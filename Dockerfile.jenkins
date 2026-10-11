@@ -1,0 +1,9 @@
+# Jenkins-Controller mit Docker-CLI, damit Pipeline-Stages in Testcontainern laufen können.
+# Multi-Stage: Das statisch gelinkte Docker-Binary wird aus dem offiziellen Image kopiert.
+FROM docker:latest AS docker-cli
+
+FROM jenkins/jenkins:lts-jdk17
+USER root
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+RUN groupadd -f docker && usermod -aG docker jenkins
+USER jenkins

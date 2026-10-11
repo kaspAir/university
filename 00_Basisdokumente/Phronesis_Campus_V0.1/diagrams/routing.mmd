@@ -1,0 +1,20 @@
+sequenceDiagram
+  participant W as Workflow
+  participant C as Context/Policy
+  participant R as Routing Agent
+  participant B as Budget/Audit
+  participant G as LLM Gateway
+  participant P as Provider
+  W->>C: TaskNeed + pinned versions
+  C->>C: Data, capability, identity and qualification filters
+  C->>R: Eligible IDs + permitted evidence summaries
+  R-->>C: Selected ID + reasons + alternatives
+  C->>C: Validate selection and required review pair
+  C->>B: Atomic reservation and RoutingDecision
+  B-->>C: Authorized execution context
+  C->>G: Exact deployment + authorized context
+  G->>P: Provider-specific request
+  P-->>G: Result / refusal / uncertain outcome
+  G->>B: Usage, effective model identity, invocation journal
+  G-->>W: Typed result and evidence references
+  Note over C,G: No invisible model substitution; technical failover re-enters selection.

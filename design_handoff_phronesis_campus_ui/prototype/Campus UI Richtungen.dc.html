@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet"><style>body{margin:0;background:#e4e2e1;font-family:"Archivo",system-ui,sans-serif;color:#201e1d}a{color:#ec3013;text-underline-offset:3px}a:hover{color:#ae1800}.dv-turn{padding:40px 44px 32px;border-bottom:2px solid rgba(32,30,29,.4);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:800 10px "Archivo",sans-serif;padding:3px 7px;background:#201e1d;color:#fff;text-decoration:none}.dv-tname{font:600 13px/1.2 "Archivo",sans-serif}.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:800 10.5px "Archivo",sans-serif;padding:3px 7px;background:rgba(32,30,29,.1);color:#201e1d;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 "Archivo",sans-serif;color:#605d5d}.dv-card{background:#f3f2f2;border:1px solid rgba(32,30,29,.2);box-shadow:0 3px 10px rgba(45,43,43,.16);overflow:hidden}.dv-opt:target .dv-oid{background:#ec3013;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 "Archivo",sans-serif;color:#605d5d}.dv-intro{max-width:760px;font:14px/1.55 "Archivo",sans-serif;color:#444141;margin:0 0 24px}.dv-intro p{margin:0 0 8px}</style></helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Phronesis-Forschungscampus – drei Richtungen für die Campusübersicht, zwei für das Forschungsdossier</span></div>
+<div class="dv-intro">
+<p><strong>Annahmen.</strong> Desktop-Webanwendung (1280 px), Deutsch, Design System «Modernist» (Archivo, ein Rot, 0 px Radius, 2 px Linien). Beispieldaten aus Verfassung und Architektur: fünf Institute (Anhang A), Forschungslinien A–F, Projektbeispiel «Rechtsanalyse Verwaltungsrecht CH» mit Modellen A/B/C (Kap. 10).</p>
+<p><strong>Gestaltungsregeln aus der Architektur.</strong> Drei Statusachsen (Arbeitsstand · Aussage · Freigabe) werden nie zu einem Gesamtsymbol verschmolzen. «Wartet auf mich» ist immer sichtbar. Stopp und Tabellen funktionieren ohne LLM. Vorbehaltene Entscheide zeigen vier echte Optionen: Annehmen · Begrenzt annehmen · Überarbeiten · Ablehnen.</p>
+</div>
+<div class="dv-opts">
+
+<!-- ═══════════ 1a TAFEL ═══════════ -->
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Campusübersicht · «Tafel» – modulares Raster, alles auf einem Blatt</div>
+<div class="dv-card" style="width:1280px">
+<div style="display:flex;align-items:center;gap:28px;padding:14px 24px;border-bottom:2px solid rgba(32,30,29,.4)">
+<div style="font-weight:800;font-size:18px;letter-spacing:-.01em">PHRONESIS<span style="color:#ec3013">.</span></div>
+<div style="display:flex;gap:20px;font-size:14px"><span style="color:#ec3013;font-weight:600">Campus</span><span>Dossiers</span><span>Register</span><span>Modelle</span><span>Prüfung</span><span>Bibliothek</span><span>Betrieb</span></div>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:12px;color:#605d5d"><span>Forschungsleitung · K. Brönnimann</span><span style="padding:3px 10px;background:#f8f4f4;color:#444141;font-size:11px">restricted_research</span><span style="font-weight:800;font-size:13px;color:#201e1d;border:1px solid rgba(32,30,29,.4);padding:7px 14px">Stopp</span></div>
+</div>
+<div style="padding:28px 24px 8px;display:flex;align-items:flex-end;gap:16px"><h1 style="margin:0;font-size:42px;font-weight:800;letter-spacing:-.015em;line-height:1">Campus</h1><span style="font-size:13px;color:#605d5d;padding-bottom:6px">Samstag, 11. Oktober 2026 · Stand 14:20</span></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);border-top:2px solid rgba(32,30,29,.4);border-bottom:2px solid rgba(32,30,29,.4);margin:12px 24px 0">
+<div style="padding:16px 16px 16px 0;border-right:1px solid rgba(32,30,29,.4)"><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#ec3013">Wartet auf mich</div><div style="font-size:56px;font-weight:800;line-height:1;margin-top:8px">3</div><div style="font-size:12px;color:#605d5d;margin-top:6px">1 Mandat · 1 Publikation · 1 Auflage fällig</div></div>
+<div style="padding:16px;border-right:1px solid rgba(32,30,29,.4)"><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Laufende Tasks</div><div style="font-size:56px;font-weight:800;line-height:1;margin-top:8px">14</div><div style="font-size:12px;color:#605d5d;margin-top:6px">4 warten · 2 in Gegenprüfung</div></div>
+<div style="padding:16px;border-right:1px solid rgba(32,30,29,.4)"><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Mittel Oktober</div><div style="font-size:56px;font-weight:800;line-height:1;margin-top:8px">62<span style="font-size:24px">%</span></div><div style="height:4px;background:#d7d3d3;margin-top:10px"><div style="height:4px;width:38%;background:#201e1d"></div></div><div style="font-size:12px;color:#605d5d;margin-top:6px">CHF 2 580 reserviert · 4 220 frei</div></div>
+<div style="padding:16px 0 16px 16px"><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Prüfkapazität</div><div style="font-size:56px;font-weight:800;line-height:1;margin-top:8px">2<span style="font-size:24px;color:#605d5d">/3</span></div><div style="font-size:12px;color:#605d5d;margin-top:6px">Modell C gedrosselt · 1 Prüfung offen</div></div>
+</div>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:0;padding:0 24px">
+<div style="border-right:1px solid rgba(32,30,29,.4);padding-right:24px">
+<h6 style="margin:22px 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Institute</h6>
+<div style="display:grid;grid-template-columns:2.2fr 1fr .8fr 1.1fr 1.6fr;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;padding:6px 0;border-bottom:2px solid rgba(32,30,29,.4)"><span>Institut</span><span>Programme</span><span>Tasks</span><span>Budget</span><span>Letztes Ereignis</span></div>
+<sc-for list="{{ institutes }}" as="i" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:2.2fr 1fr .8fr 1.1fr 1.6fr;align-items:center;font-size:14px;padding:12px 0;border-bottom:1px solid rgba(32,30,29,.4)">
+<span style="font-weight:600">{{ i.name }}</span><span style="color:#444141">{{ i.programs }}</span><span>{{ i.tasks }}</span>
+<span style="display:flex;align-items:center;gap:8px;padding-right:16px"><span style="flex:1;height:4px;background:#d7d3d3"><span style="display:block;height:4px;background:#201e1d;width:{{ i.budgetPct }}"></span></span><span style="font-size:12px;color:#605d5d;min-width:30px">{{ i.budget }}</span></span>
+<span style="font-size:12px;color:#444141">{{ i.event }}</span>
+</div>
+</sc-for>
+<h6 style="margin:26px 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Ereignisse</h6>
+<sc-for list="{{ events }}" as="e" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:60px 1.4fr 3fr;gap:12px;font-size:13px;padding:8px 0;border-bottom:1px solid rgba(32,30,29,.2)"><span style="color:#605d5d;font-variant-numeric:tabular-nums">{{ e.time }}</span><span style="font-weight:600;color:{{ e.color }}">{{ e.type }}</span><span style="color:#444141">{{ e.text }}</span></div>
+</sc-for>
+</div>
+<div style="padding-left:24px">
+<h6 style="margin:22px 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#ec3013;font-weight:600">Wartet auf mich</h6>
+<sc-for list="{{ decisions }}" as="d" hint-placeholder-count="3">
+<div style="padding:14px 0;border-bottom:1px solid rgba(32,30,29,.4);display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;justify-content:space-between;font-size:11px"><span style="padding:2px 8px;background:#fff2ef;color:#7c1405">{{ d.kind }}</span><span style="color:#605d5d">{{ d.due }}</span></div>
+<div style="font-weight:800;font-size:16px;line-height:1.2">{{ d.title }}</div>
+<div style="font-size:12px;color:#605d5d">{{ d.meta }}</div>
+<div style="display:flex;gap:8px;margin-top:4px"><span style="font-weight:800;font-size:13px;background:#ec3013;color:#f3f2f2;padding:7px 14px">Entscheiden</span><span style="font-weight:800;font-size:13px;border:1px solid rgba(32,30,29,.4);padding:7px 14px">Dossier</span></div>
+</div>
+</sc-for>
+<div style="margin-top:24px;padding:14px;background:#eae9e9;font-size:12px;color:#444141;line-height:1.5">Zahlen beziehen sich auf Registerstand 14:20. Tabellen, Suche und Stopp bleiben bei Modellausfall bedienbar.</div>
+</div>
+</div>
+<div style="height:24px"></div>
+</div></div>
+
+<!-- ═══════════ 1b KOMMANDOZENTRALE ═══════════ -->
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Campusübersicht · «Kommandozentrale» – Entscheide zuerst, Institute als fünf Zellen</div>
+<div class="dv-card" style="width:1280px;display:grid;grid-template-columns:216px 1fr">
+<div style="border-right:2px solid rgba(32,30,29,.4);padding:18px 0;display:flex;flex-direction:column;min-height:900px">
+<div style="font-weight:800;font-size:18px;padding:0 20px 18px;border-bottom:2px solid rgba(32,30,29,.4)">PHRONESIS<span style="color:#ec3013">.</span></div>
+<sc-for list="{{ navItems }}" as="n" hint-placeholder-count="7">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 20px;font-size:14px;border-bottom:1px solid rgba(32,30,29,.15);font-weight:{{ n.weight }};color:{{ n.color }};background:{{ n.bg }}"><span>{{ n.label }}</span><span style="font-size:11px;color:#605d5d">{{ n.count }}</span></div>
+</sc-for>
+<div style="margin-top:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px"><div style="font-size:11px;color:#605d5d">Forschungsleitung<br><strong style="color:#201e1d">K. Brönnimann</strong></div><div style="font-weight:800;font-size:13px;border:1px solid rgba(32,30,29,.4);padding:8px 14px;text-align:left">Stopp – alle Läufe</div></div>
+</div>
+<div style="padding:26px 28px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><h1 style="margin:0;font-size:36px;font-weight:800;letter-spacing:-.015em">Guten Tag. Drei Entscheide warten.</h1><span style="font-size:13px;color:#605d5d">Sa 11.10.2026 · 14:20</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px">
+<sc-for list="{{ decisions }}" as="d" hint-placeholder-count="3">
+<div style="background:#eae9e9;padding:18px;display:flex;flex-direction:column;gap:8px;border-top:2px solid #ec3013">
+<div style="display:flex;justify-content:space-between;font-size:11px"><span style="letter-spacing:.1em;text-transform:uppercase;color:#ec3013">{{ d.kind }}</span><span style="color:#605d5d">{{ d.due }}</span></div>
+<div style="font-weight:800;font-size:18px;line-height:1.15;min-height:42px">{{ d.title }}</div>
+<div style="font-size:12px;color:#605d5d;line-height:1.5">{{ d.meta }}</div>
+<div style="font-size:12px;color:#444141;line-height:1.5;border-top:1px solid rgba(32,30,29,.3);padding-top:8px">{{ d.open }}</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><span style="font-weight:800;font-size:12px;background:#ec3013;color:#f3f2f2;padding:8px 10px">Annehmen</span><span style="font-weight:800;font-size:12px;border:1px solid rgba(32,30,29,.4);padding:8px 10px">Begrenzt</span><span style="font-weight:800;font-size:12px;border:1px solid rgba(32,30,29,.4);padding:8px 10px">Überarbeiten</span><span style="font-weight:800;font-size:12px;border:1px solid rgba(32,30,29,.4);padding:8px 10px">Ablehnen</span></div>
+</div>
+</sc-for>
+</div>
+<h6 style="margin:30px 0 0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Institute</h6>
+<div style="display:grid;grid-template-columns:repeat(5,1fr);border-top:2px solid rgba(32,30,29,.4);border-bottom:2px solid rgba(32,30,29,.4);margin-top:8px">
+<sc-for list="{{ institutes }}" as="i" hint-placeholder-count="5">
+<div style="padding:14px 14px 14px 0;margin-right:14px;border-right:1px solid rgba(32,30,29,.3);display:flex;flex-direction:column;gap:6px;min-height:150px"><div style="font-size:12px;font-weight:600;line-height:1.25;min-height:32px">{{ i.name }}</div><div style="font-size:40px;font-weight:800;line-height:1">{{ i.running }}</div><div style="font-size:11px;color:#605d5d">laufend · {{ i.waiting }} warten</div><div style="height:4px;background:#d7d3d3;margin-top:auto"><div style="height:4px;background:#201e1d;width:{{ i.budgetPct }}"></div></div><div style="font-size:11px;color:#605d5d">Budget {{ i.budget }} genutzt</div></div>
+</sc-for>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:26px">
+<div><h6 style="margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Mittel · Budgetbaum</h6>
+<sc-for list="{{ budgetTree }}" as="b" hint-placeholder-count="4">
+<div style="display:grid;grid-template-columns:1fr 100px 90px;align-items:center;gap:12px;font-size:13px;padding:8px 0;border-bottom:1px solid rgba(32,30,29,.3);padding-left:{{ b.indent }}"><span style="font-weight:{{ b.weight }}">{{ b.name }}</span><span style="height:4px;background:#d7d3d3"><span style="display:block;height:4px;background:{{ b.color }};width:{{ b.pct }}"></span></span><span style="text-align:right;font-variant-numeric:tabular-nums;color:#444141">{{ b.amount }}</span></div>
+</sc-for></div>
+<div><h6 style="margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Prüfkapazität · Modelle</h6>
+<sc-for list="{{ models }}" as="m" hint-placeholder-count="3">
+<div style="display:grid;grid-template-columns:14px 1fr 1.4fr auto;align-items:center;gap:12px;font-size:13px;padding:9px 0;border-bottom:1px solid rgba(32,30,29,.3)"><span style="width:10px;height:10px;background:{{ m.dot }}"></span><span style="font-weight:600">{{ m.name }}</span><span style="color:#444141;font-size:12px">{{ m.role }}</span><span style="font-size:11px;padding:2px 8px;background:#f8f4f4;color:#444141">{{ m.state }}</span></div>
+</sc-for></div>
+</div>
+</div>
+</div></div>
+
+<!-- ═══════════ 1c LEITARTIKEL ═══════════ -->
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Campusübersicht · «Leitartikel» – Plakatfeld für den dringendsten Entscheid, Ereignisstrom als Tageschronik</div>
+<div class="dv-card" style="width:1280px">
+<div style="display:flex;align-items:center;gap:28px;padding:14px 24px;border-bottom:2px solid rgba(32,30,29,.4)">
+<div style="font-weight:800;font-size:18px">PHRONESIS<span style="color:#ec3013">.</span></div>
+<div style="display:flex;gap:20px;font-size:14px"><span style="color:#ec3013;font-weight:600">Campus</span><span>Dossiers</span><span>Register</span><span>Modelle</span><span>Prüfung</span><span>Bibliothek</span><span>Betrieb</span></div>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:12px;color:#605d5d"><span>K. Brönnimann</span><span style="font-weight:800;font-size:13px;color:#201e1d;border:1px solid rgba(32,30,29,.4);padding:7px 14px">Stopp</span></div>
+</div>
+<div style="display:grid;grid-template-columns:420px 1fr;min-height:860px">
+<div style="background:#ec3013;color:#f3f2f2;padding:32px 28px;display:flex;flex-direction:column">
+<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase">Dringendster Entscheid · fällig heute 18:00</div>
+<div style="font-size:84px;font-weight:800;line-height:.95;margin-top:28px;letter-spacing:-.03em">Mandat M-04</div>
+<div style="font-size:22px;font-weight:800;line-height:1.2;margin-top:18px">Replikationsprogramm «Prüfverfahren unter Modellwechsel»</div>
+<div style="font-size:14px;line-height:1.5;margin-top:18px;opacity:.95">Institut Metawissenschaft · Linie C · Budget CHF 1 200 · 6 Wochen · Datenklasse: öffentlich. Zwei Restbefunde, eine offene Auflage (Prüffälle extern verwahren).</div>
+<div style="margin-top:auto;display:flex;flex-direction:column;gap:6px;font-weight:800;font-size:14px"><span style="background:#f3f2f2;color:#ec3013;padding:12px 16px">Entscheid öffnen</span><span style="border:1px solid rgba(243,242,242,.6);padding:12px 16px">Weitere 2 Entscheide</span></div>
+</div>
+<div style="padding:28px 28px 28px 32px">
+<div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:2px solid rgba(32,30,29,.4);padding-bottom:18px">
+<div><div style="font-size:64px;font-weight:800;line-height:1;letter-spacing:-.02em">14</div><div style="font-size:12px;color:#605d5d;margin-top:4px">Tasks laufend · 4 warten</div></div>
+<div><div style="font-size:64px;font-weight:800;line-height:1;letter-spacing:-.02em">62<span style="font-size:28px">%</span></div><div style="font-size:12px;color:#605d5d;margin-top:4px">Mittel Oktober verfügbar</div></div>
+<div><div style="font-size:64px;font-weight:800;line-height:1;letter-spacing:-.02em">2<span style="font-size:28px;color:#605d5d">/3</span></div><div style="font-size:12px;color:#605d5d;margin-top:4px">Prüfmodelle verfügbar · 1 Prüfung offen</div></div>
+</div>
+<h6 style="margin:22px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Institute</h6>
+<sc-for list="{{ institutes }}" as="i" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:baseline;font-size:14px;padding:9px 0;border-bottom:1px solid rgba(32,30,29,.3)"><span style="width:10px;height:10px;background:{{ i.dot }};display:inline-block;align-self:center"></span><span><strong>{{ i.name }}</strong> <span style="color:#605d5d"> · {{ i.programs }} · {{ i.tasks }} Tasks</span></span><span style="font-size:12px;color:#605d5d">{{ i.event }}</span></div>
+</sc-for>
+<h6 style="margin:26px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Heute</h6>
+<sc-for list="{{ events }}" as="e" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:56px 16px 1fr;gap:12px;font-size:14px;padding:10px 0"><span style="font-variant-numeric:tabular-nums;color:#605d5d;font-size:13px">{{ e.time }}</span><span style="border-left:2px solid {{ e.color }};height:100%"></span><span><strong style="color:{{ e.color }}">{{ e.type }}</strong><span style="color:#444141"> — {{ e.text }}</span></span></div>
+</sc-for>
+</div>
+</div>
+</div></div>
+
+<!-- ═══════════ 1d AKTE ═══════════ -->
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Forschungsdossier · «Akte» – Inhaltsverzeichnis links, Dossier als lesbares Dokument, Modellroute rechts</div>
+<div class="dv-card" style="width:1280px">
+<div style="display:flex;align-items:center;gap:28px;padding:14px 24px;border-bottom:2px solid rgba(32,30,29,.4)">
+<div style="font-weight:800;font-size:18px">PHRONESIS<span style="color:#ec3013">.</span></div>
+<div style="display:flex;gap:20px;font-size:14px"><span>Campus</span><span style="color:#ec3013;font-weight:600">Dossiers</span><span>Register</span><span>Modelle</span><span>Prüfung</span><span>Bibliothek</span><span>Betrieb</span></div>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:12px;color:#605d5d"><span>K. Brönnimann</span><span style="font-weight:800;font-size:13px;color:#201e1d;border:1px solid rgba(32,30,29,.4);padding:7px 14px">Stopp</span></div>
+</div>
+<div style="padding:24px 24px 0"><div style="font-size:12px;color:#605d5d">Dossiers › Recht, Institutionen und Gesellschaft › P-07</div>
+<h1 style="margin:8px 0 0;font-size:34px;font-weight:800;letter-spacing:-.015em;line-height:1.1;max-width:900px">Rechtliches Gehör in automatisierten Verwaltungsverfahren (CH)</h1>
+<div style="font-size:13px;color:#444141;margin-top:8px">Mandat M-03 · Linie D · federführend Recht, Institutionen und Gesellschaft · Kooperation Grundlagen und formale Modelle · verantwortlich K. Brönnimann</div></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);margin:18px 24px 0;border-top:2px solid rgba(32,30,29,.4);border-bottom:2px solid rgba(32,30,29,.4)">
+<div style="padding:12px 16px 12px 0;border-right:1px solid rgba(32,30,29,.4)"><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Arbeitsstand</div><div style="font-weight:800;font-size:20px;margin-top:4px">Laufend</div><div style="font-size:12px;color:#605d5d">Schritt 6 Gegenprüfen · 7 Läufe · nächster Berichtspunkt 25.10.</div></div>
+<div style="padding:12px 16px;border-right:1px solid rgba(32,30,29,.4)"><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Aussagen · epistemisch</div><div style="font-weight:800;font-size:20px;margin-top:4px">2 gestützt · 1 bestritten · 1 Hypothese</div><div style="font-size:12px;color:#605d5d">relativ zu Bewertungsfassung R-3</div></div>
+<div style="padding:12px 0 12px 16px"><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Freigabe</div><div style="font-weight:800;font-size:20px;margin-top:4px">Entwurf</div><div style="font-size:12px;color:#605d5d">Manuskript v0.3 · keine Ergebnisfreigabe · keine externe Freigabe</div></div>
+</div>
+<div style="display:grid;grid-template-columns:200px 1fr 300px;padding:0 24px;min-height:640px">
+<div style="border-right:1px solid rgba(32,30,29,.4);padding:20px 16px 20px 0">
+<sc-for list="{{ toc }}" as="t" hint-placeholder-count="8">
+<div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-bottom:1px solid rgba(32,30,29,.15);color:{{ t.color }};font-weight:{{ t.weight }}"><span>{{ t.label }}</span><span style="font-size:12px;color:#605d5d">{{ t.count }}</span></div>
+</sc-for>
+<div style="margin-top:20px;font-size:12px;color:#605d5d;line-height:1.5">Dossier-Export · Reproduktionspaket (geschützt)</div>
+</div>
+<div style="padding:20px 24px">
+<h6 style="margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#ec3013;font-weight:600">Frage</h6>
+<p style="font-size:17px;line-height:1.45;margin:0 0 20px;max-width:640px;text-wrap:pretty">Unter welchen Bedingungen genügt ein vollautomatisiertes Verfügungsverfahren dem Anspruch auf rechtliches Gehör, und welche Verfahrensgarantien lassen sich nicht durch nachträgliche Einsprache ersetzen?</p>
+<div style="display:flex;gap:16px;font-size:12px;color:#605d5d;border-bottom:2px solid rgba(32,30,29,.4);padding-bottom:14px"><span>Protokoll P-07/2 · <strong style="color:#201e1d">bestätigend</strong></span><span>Rechtsordnung CH · Stand 1.1.2026</span><span>Kriterien fixiert 29.9.2026</span></div>
+<h6 style="margin:22px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Aussagen</h6>
+<sc-for list="{{ claims }}" as="c" hint-placeholder-count="4">
+<div style="display:grid;grid-template-columns:64px 1fr 150px;gap:14px;padding:14px 0;border-bottom:1px solid rgba(32,30,29,.3)">
+<span style="font-size:12px;color:#605d5d;font-variant-numeric:tabular-nums">{{ c.id }}<br><span style="font-size:11px">{{ c.kind }}</span></span>
+<span><span style="font-size:15px;line-height:1.4;font-weight:600">{{ c.text }}</span><br><span style="font-size:12px;color:#605d5d">{{ c.evidence }} · Gegenprüfung {{ c.review }}</span></span>
+<span style="justify-self:end;align-self:start;font-size:11px;padding:3px 10px;background:{{ c.bg }};color:{{ c.fg }}">{{ c.status }}</span>
+</div>
+</sc-for>
+<h6 style="margin:22px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Gegenargumente und Dissens</h6>
+<div style="padding:14px 0;border-bottom:1px solid rgba(32,30,29,.3);font-size:14px;line-height:1.5"><strong>F-07 · gegen C-014</strong> — Modell B: Die Einsprachefrist von 30 Tagen heilt den Gehörsmangel nicht, wenn die Entscheidgrundlagen nicht offengelegt sind. <span style="color:#605d5d">Tragweite: Hauptaussage · Behandlung: Einschränken, zuständig Agent Recht-02 · Termin 18.10.</span></div>
+<div style="padding:14px 0;font-size:14px;line-height:1.5"><strong>Dissens D-02</strong> — Erzeuger (Modell A) und Prüfer (Modell B) uneinig über Reichweite von BGE-Referenzen vor 2020. <span style="color:#605d5d">Wird als Streitfrage geführt, nicht aufgelöst.</span></div>
+</div>
+<div style="padding:20px 0 20px 24px;border-left:1px solid rgba(32,30,29,.4)">
+<h6 style="margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Letzter Lauf · R-07</h6>
+<div style="font-size:12px;color:#605d5d">Aufgabe</div><div style="font-size:14px;font-weight:600;margin-bottom:12px">Gegenprüfung juristische Argumentation, DE, 42 Quellen</div>
+<div style="font-size:12px;color:#605d5d">Gewählt</div><div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin-bottom:4px"><span style="width:10px;height:10px;background:#201e1d"></span>Modell B · Anbieter 2</div><div style="font-size:12px;color:#444141;line-height:1.5;margin-bottom:12px">Nachweis Q-B-17 (Argumentprüfung, n=120). Kanonisch getrennt von Erzeuger A.</div>
+<div style="font-size:12px;color:#605d5d">Ausgeschlossen</div>
+<div style="font-size:13px;line-height:1.5;margin-bottom:12px"><div style="display:flex;gap:8px;align-items:center"><span style="width:10px;height:10px;background:#bab6b6"></span>Modell A — <span style="color:#605d5d">Erzeuger (I04)</span></div><div style="display:flex;gap:8px;align-items:center"><span style="width:10px;height:10px;background:#bab6b6"></span>Modell C — <span style="color:#605d5d">QUALIFICATION_MISSING</span></div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;border-top:1px solid rgba(32,30,29,.3);padding-top:12px"><span style="color:#605d5d">Reserve</span><span>CHF 18.40</span><span style="color:#605d5d">Ist</span><span>CHF 12.90</span><span style="color:#605d5d">Datenklasse</span><span>öffentlich</span><span style="color:#605d5d">Route</span><span>RD-0931</span></div>
+<div style="margin-top:20px;font-weight:800;font-size:13px;border:1px solid rgba(32,30,29,.4);padding:8px 14px">Routing-Entscheid lesen</div>
+</div>
+</div>
+</div></div>
+
+<!-- ═══════════ 1e AUSSAGEN-TAFEL ═══════════ -->
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Forschungsdossier · «Aussagen-Tafel» – Claims nach epistemischem Status in Spalten, Abhängigkeitskette unten</div>
+<div class="dv-card" style="width:1280px">
+<div style="display:flex;align-items:center;gap:28px;padding:14px 24px;border-bottom:2px solid rgba(32,30,29,.4)">
+<div style="font-weight:800;font-size:18px">PHRONESIS<span style="color:#ec3013">.</span></div>
+<div style="display:flex;gap:20px;font-size:14px"><span>Campus</span><span style="color:#ec3013;font-weight:600">Dossiers</span><span>Register</span><span>Modelle</span><span>Prüfung</span><span>Bibliothek</span><span>Betrieb</span></div>
+<div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:12px;color:#605d5d"><span>K. Brönnimann</span><span style="font-weight:800;font-size:13px;color:#201e1d;border:1px solid rgba(32,30,29,.4);padding:7px 14px">Stopp</span></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 360px;gap:0;padding:22px 24px 0;border-bottom:2px solid rgba(32,30,29,.4)">
+<div style="padding-bottom:18px"><div style="font-size:12px;color:#605d5d">P-07 · Mandat M-03 · Linie D</div><h1 style="margin:6px 0 0;font-size:30px;font-weight:800;letter-spacing:-.015em;line-height:1.1">Rechtliches Gehör in automatisierten Verwaltungsverfahren (CH)</h1>
+<div style="display:flex;gap:10px;margin-top:14px;font-size:13px"><span style="padding:6px 12px;background:#201e1d;color:#f3f2f2;font-weight:600">Aussagen</span><span style="padding:6px 12px;border:1px solid rgba(32,30,29,.4)">Frage & Protokoll</span><span style="padding:6px 12px;border:1px solid rgba(32,30,29,.4)">Quellen 12</span><span style="padding:6px 12px;border:1px solid rgba(32,30,29,.4)">Läufe 7</span><span style="padding:6px 12px;border:1px solid rgba(32,30,29,.4)">Fassungen 2</span></div></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);border-left:1px solid rgba(32,30,29,.4);padding-left:20px;font-size:12px;gap:12px;align-content:start">
+<div><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Arbeit</div><div style="font-weight:800;font-size:16px">Laufend</div><div style="color:#605d5d">Schritt 6</div></div>
+<div><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Aussage</div><div style="font-weight:800;font-size:16px">4</div><div style="color:#605d5d">zu R-3</div></div>
+<div><div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#605d5d">Freigabe</div><div style="font-weight:800;font-size:16px">Entwurf</div><div style="color:#605d5d">v0.3</div></div>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);padding:0 24px;min-height:420px">
+<sc-for list="{{ columns }}" as="col" hint-placeholder-count="4">
+<div style="padding:16px 14px 16px 0;margin-right:14px;border-right:1px solid rgba(32,30,29,.3);display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:{{ col.color }};font-weight:600;padding-bottom:8px;border-bottom:2px solid {{ col.color }}"><span>{{ col.label }}</span><span>{{ col.count }}</span></div>
+<sc-for list="{{ col.items }}" as="c" hint-placeholder-count="1">
+<div style="background:#eae9e9;padding:12px;display:flex;flex-direction:column;gap:6px;border-left:2px solid {{ col.color }}"><div style="display:flex;justify-content:space-between;font-size:11px;color:#605d5d"><span>{{ c.id }}</span><span>{{ c.kind }}</span></div><div style="font-size:14px;line-height:1.35;font-weight:600">{{ c.text }}</div><div style="font-size:11px;color:#605d5d">{{ c.evidence }} · Prüfung {{ c.review }}</div></div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+<div style="margin:0 24px;border-top:2px solid rgba(32,30,29,.4);padding:18px 0 24px">
+<h6 style="margin:0 0 12px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#605d5d;font-weight:600">Abhängigkeiten · wer stützt wen</h6>
+<div style="display:grid;grid-template-columns:1fr 36px 1fr 36px 1fr 36px 1fr;align-items:center;font-size:13px">
+<div style="padding:10px 12px;border:1px solid rgba(32,30,29,.4)"><strong>Q-03, Q-07, Q-11</strong><br><span style="color:#605d5d">Primärquellen · Volltext geprüft</span></div><div style="text-align:center;color:#605d5d">→</div>
+<div style="padding:10px 12px;border:1px solid rgba(32,30,29,.4)"><strong>C-011</strong> gestützt<br><span style="color:#605d5d">Beobachtung · R-04</span></div><div style="text-align:center;color:#605d5d">→</div>
+<div style="padding:10px 12px;border:1px solid #ec3013;background:#fff2ef"><strong>C-014</strong> bestritten<br><span style="color:#7c1405">F-07 offen · erneut prüfen</span></div><div style="text-align:center;color:#605d5d">→</div>
+<div style="padding:10px 12px;border:1px dashed rgba(32,30,29,.4);color:#605d5d"><strong style="color:#201e1d">Manuskript v0.3</strong><br>Freigabe gesperrt bis F-07 behandelt</div>
+</div>
+<div style="font-size:12px;color:#605d5d;margin-top:10px">Q-03 und Q-07 teilen den Ursprung BGE 2019/… und zählen nicht als unabhängige Bestätigung.</div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Weiter: «klickbaren Prototyp aus <a class="dv-oid" href="#1b">1b</a> + <a class="dv-oid" href="#1d">1d</a> bauen» · «Plakatfeld aus <a class="dv-oid" href="#1c">1c</a> in <a class="dv-oid" href="#1a">1a</a> übernehmen» · «Aussagen-Spalten aus <a class="dv-oid" href="#1e">1e</a> als Tab in <a class="dv-oid" href="#1d">1d</a>»</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const ink = '#201e1d', red = '#ec3013', grey = '#7d7979';
+    const institutes = [
+      { name: 'Grundlagen und formale Modelle', programs: 'Linie A', tasks: '3 / 1', running: 3, waiting: 1, budget: '41%', budgetPct: '41%', event: 'Beweisobjekt B-12 geprüft · 13:52', dot: ink },
+      { name: 'Angewandte Forschung und Entscheidungsprozesse', programs: 'Linien A, B', tasks: '4 / 0', running: 4, waiting: 0, budget: '55%', budgetPct: '55%', event: 'Fallkorpus v2 importiert · 12:10', dot: ink },
+      { name: 'Recht, Institutionen und Gesellschaft', programs: 'Linien D–F', tasks: '3 / 2', running: 3, waiting: 2, budget: '38%', budgetPct: '38%', event: 'Einwand F-07 gegen C-014 · 11:48', dot: red },
+      { name: 'Ingenieurswesen und experimentelle Systeme', programs: 'Linien B, C', tasks: '2 / 0', running: 2, waiting: 0, budget: '29%', budgetPct: '29%', event: 'Sandboxlauf S-88 beendet · 10:05', dot: ink },
+      { name: 'Metawissenschaft, Methoden und Replikation', programs: 'Linie C', tasks: '2 / 1', running: 2, waiting: 1, budget: '12%', budgetPct: '12%', event: 'Wartet auf Mandat M-04', dot: grey },
+    ];
+    const decisions = [
+      { kind: 'Mandat', due: 'heute 18:00', title: 'M-04 Replikationsprogramm «Prüfverfahren unter Modellwechsel»', meta: 'Metawissenschaft · Linie C · CHF 1 200 · 6 Wochen', open: '2 Restbefunde · 1 Auflage: Prüffälle extern verwahren' },
+      { kind: 'Publikation', due: 'Mo 13.10.', title: 'Preprint P-05 v1.2 «Governance-Muster in Projektabbrüchen»', meta: 'Angewandte Forschung · Ziel: Repository · Fassung sha 9f2c…', open: 'Externe Freigabe · KI-Deklaration vollständig · 0 offene Einwände' },
+      { kind: 'Auflage fällig', due: 'überfällig 2 Tage', title: 'A-11 Interessenkonflikt-Erklärung Prüfer P-07', meta: 'Recht · zuständig K. Brönnimann', open: 'Blockiert Ergebnisfreigabe P-07' },
+    ];
+    const events = [
+      { time: '14:12', type: 'RoutingDecided', color: ink, text: 'P-07 R-07: Modell B für Gegenprüfung; A als Erzeuger ausgeschlossen (I04)' },
+      { time: '13:52', type: 'ClaimSupported', color: ink, text: 'Grundlagen: B-12 Checker-Fassung 2.1 bestätigt Annahmen' },
+      { time: '11:48', type: 'ClaimContested', color: red, text: 'P-07: Einwand F-07 gegen C-014 registriert, Termin 18.10.' },
+      { time: '10:31', type: 'AgentActivated', color: ink, text: 'Recht-03 (Rechtsvergleichung EU) nach getrennter Qualifikation aktiv' },
+      { time: '09:05', type: 'BudgetReserved', color: grey, text: 'Ingenieurswesen: Sandboxlauf S-88 CHF 6.20 reserviert / 4.80 abgerechnet' },
+    ];
+    const navItems = [
+      { label: 'Campus', count: '', weight: 800, color: red, bg: '#fff2ef' },
+      { label: 'Dossiers', count: '11', weight: 400, color: ink, bg: 'transparent' },
+      { label: 'Register', count: '23', weight: 400, color: ink, bg: 'transparent' },
+      { label: 'Modelle', count: '3', weight: 400, color: ink, bg: 'transparent' },
+      { label: 'Prüfung & Freigabe', count: '3', weight: 400, color: ink, bg: 'transparent' },
+      { label: 'Bibliothek', count: '412', weight: 400, color: ink, bg: 'transparent' },
+      { label: 'Betrieb & Kosten', count: '', weight: 400, color: ink, bg: 'transparent' },
+    ];
+    const budgetTree = [
+      { name: 'Campus Oktober', amount: 'CHF 6 800', pct: '38%', indent: '0', weight: 800, color: ink },
+      { name: 'Mandat M-03 Recht', amount: '1 900', pct: '46%', indent: '16px', weight: 600, color: ink },
+      { name: 'P-07 · 7 Tasks', amount: '870', pct: '51%', indent: '32px', weight: 400, color: grey },
+      { name: 'Geschützt: Grundlagen + Replikation', amount: '1 700', pct: '18%', indent: '16px', weight: 600, color: red },
+    ];
+    const models = [
+      { name: 'Modell A', role: 'Quellenkartierung · Anbieter 1', state: 'verfügbar', dot: ink },
+      { name: 'Modell B', role: 'Argumentprüfung · Anbieter 2', state: 'verfügbar', dot: ink },
+      { name: 'Modell C', role: 'ohne Nachweis · Exploration', state: 'gedrosselt', dot: '#ff9783' },
+    ];
+    const toc = [
+      { label: 'Frage', count: '', weight: 600, color: red }, { label: 'Protokoll', count: 'P-07/2', weight: 400, color: ink },
+      { label: 'Quellen', count: '12', weight: 400, color: ink }, { label: 'Läufe', count: '7', weight: 400, color: ink },
+      { label: 'Aussagen', count: '4', weight: 400, color: ink }, { label: 'Gegenargumente', count: '2', weight: 400, color: ink },
+      { label: 'Dissens', count: '1', weight: 400, color: ink }, { label: 'Fassungen', count: '2', weight: 400, color: ink },
+    ];
+    const claims = [
+      { id: 'C-011', kind: 'Beobachtung', text: 'In 4 von 6 untersuchten kantonalen Verfahren erfolgt die Verfügung ohne vorgängige Anhörung.', evidence: '3 Primärquellen · Lauf R-04', review: 'Modell B · bestanden', status: 'gestützt', bg: '#f8f4f4', fg: '#444141' },
+      { id: 'C-012', kind: 'Rechtl. Würdigung', text: 'Die nachträgliche Einsprache ersetzt den Gehörsanspruch nur bei vollständiger Offenlegung der Entscheidgrundlagen.', evidence: '4 Quellen · 1 Sekundärzitat sichtbar', review: 'Modell B · bestanden', status: 'gestützt', bg: '#f8f4f4', fg: '#444141' },
+      { id: 'C-014', kind: 'Rechtl. Würdigung', text: 'Art. 29 Abs. 2 BV verlangt im vollautomatisierten Verfahren keine Anhörung vor Verfügungserlass.', evidence: '2 Quellen · gemeinsamer Ursprung', review: 'Modell B · Einwand F-07', status: 'bestritten', bg: '#fff2ef', fg: '#7c1405' },
+      { id: 'C-015', kind: 'Hypothese', text: 'Erklärbarkeitsauflagen reduzieren Einsprachequoten in automatisierten Verfahren.', evidence: 'kein Beleg · explorativ', review: 'offen', status: 'Hypothese', bg: '#eae9e9', fg: '#605d5d' },
+    ];
+    const columns = [
+      { label: 'Hypothese', color: grey, count: 1, items: [claims[3]] },
+      { label: 'Beobachtung', color: ink, count: 1, items: [claims[0]] },
+      { label: 'Gestützt', color: ink, count: 1, items: [claims[1]] },
+      { label: 'Bestritten', color: red, count: 1, items: [claims[2]] },
+    ];
+    return { institutes, decisions, events, navItems, budgetTree, models, toc, claims, columns };
+  }
+}
+</script>
+</body>
+</html>

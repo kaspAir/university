@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/model_catalog.schema.json",
+  "title": "model_catalog",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "purpose": {
+      "enum": [
+        "configuration_template",
+        "test_fixture",
+        "runtime_snapshot"
+      ]
+    },
+    "deployments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "adapter": {
+            "enum": [
+              "mock",
+              "anthropic",
+              "openai",
+              "google",
+              "openai_compatible",
+              "litellm"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "provider_model_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "canonical_model_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model_family": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shared_base_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "api_base": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "secret_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version_mode": {
+            "enum": [
+              "fixed",
+              "moving_alias",
+              "unknown"
+            ]
+          },
+          "capabilities": {
+            "type": "object",
+            "properties": {
+              "text_input": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "unsupported",
+                  "unknown"
+                ]
+              },
+              "vision_input": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "unsupported",
+                  "unknown"
+                ]
+              },
+              "tool_calling": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "unsupported",
+                  "unknown"
+                ]
+              },
+              "structured_output": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "unsupported",
+                  "unknown"
+                ]
+              },
+              "streaming": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "unsupported",
+                  "unknown"
+                ]
+              },
+              "context_tokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "output_tokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              }
+            },
+            "required": [
+              "text_input",
+              "vision_input",
+              "tool_calling",
+              "structured_output",
+              "streaming",
+              "context_tokens",
+              "output_tokens"
+            ],
+            "additionalProperties": false
+          },
+          "allowed_data_labels": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "public",
+                "internal",
+                "confidential",
+                "personal"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "allowed_tool_scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "processing_profile_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pricing_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qualification_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "health": {
+            "enum": [
+              "available",
+              "unavailable",
+              "unknown",
+              "throttled"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "provider_id",
+          "adapter",
+          "enabled",
+          "provider_model_id",
+          "canonical_model_id",
+          "model_family",
+          "shared_base_id",
+          "api_base",
+          "secret_ref",
+          "version_mode",
+          "capabilities",
+          "allowed_data_labels",
+          "allowed_tool_scopes",
+          "processing_profile_ref",
+          "pricing_ref",
+          "qualification_refs",
+          "health"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "enabled": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "provider_model_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "canonical_model_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "processing_profile_ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pricing_ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "revision",
+    "purpose",
+    "deployments"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "task_id": "fixture-task-1",
+  "workspace_id": "fixture-workspace",
+  "project_id": "fixture-project",
+  "mandate_version_ref": "fixture-mandate@1",
+  "agent_profile_version_ref": "fixture-ai-researcher@1",
+  "skill_version_refs": [
+    "fixture-source-analysis@1"
+  ],
+  "role": "producer",
+  "task_class": "source_analysis",
+  "language": "de-CH",
+  "data_labels": [
+    "public"
+  ],
+  "required_features": [
+    "text_input",
+    "tool_calling",
+    "structured_output"
+  ],
+  "context_tokens_estimate": 5000,
+  "max_output_tokens": 2000,
+  "required_tool_scopes": [
+    "sources.read"
+  ],
+  "substantive_contributor_model_ids": [],
+  "qualification_mode": "qualified",
+  "routing_policy_ref": "fixture-policy-1",
+  "budget_account_id": "fixture-root-budget"
+}

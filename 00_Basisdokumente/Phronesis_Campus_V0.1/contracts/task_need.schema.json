@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/task_need.schema.json",
+  "title": "task_need",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mandate_version_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_profile_version_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "skill_version_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "role": {
+      "enum": [
+        "producer",
+        "reviewer",
+        "selector",
+        "replicator"
+      ]
+    },
+    "task_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "data_labels": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "public",
+          "internal",
+          "confidential",
+          "personal"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "required_features": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "text_input",
+          "vision_input",
+          "tool_calling",
+          "structured_output",
+          "streaming"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "context_tokens_estimate": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "max_output_tokens": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "required_tool_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "substantive_contributor_model_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "qualification_mode": {
+      "enum": [
+        "qualified",
+        "sandbox_experiment"
+      ]
+    },
+    "routing_policy_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "budget_account_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "workspace_id",
+    "project_id",
+    "mandate_version_ref",
+    "agent_profile_version_ref",
+    "skill_version_refs",
+    "role",
+    "task_class",
+    "language",
+    "data_labels",
+    "required_features",
+    "context_tokens_estimate",
+    "max_output_tokens",
+    "required_tool_scopes",
+    "substantive_contributor_model_ids",
+    "qualification_mode",
+    "routing_policy_ref",
+    "budget_account_id"
+  ],
+  "additionalProperties": false
+}

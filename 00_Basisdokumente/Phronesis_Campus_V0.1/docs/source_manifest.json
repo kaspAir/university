@@ -1,0 +1,45 @@
+{
+  "as_of": "2026-10-11",
+  "files": [
+    {
+      "name": "Phronesis_Forschungsverfassung_V0.2.docx",
+      "sha256": "c90609828975d0e0f7df1aa8503f0674f063b7a7023395aa53f99c30a4c261f1"
+    },
+    {
+      "name": "Phronesis_Forschungsuebersicht_V1.0.docx",
+      "sha256": "bee960e9253edd94ab218b76602f4ef3918d10b60194c20c0cb4dede760d8516"
+    },
+    {
+      "name": "PHRONESIS_MANIFESTO(2).docx",
+      "sha256": "0a2d7d5366e0a0c2aa6a34f254cef6ff211291cad6ce4e7b99ce42ed89914f6c"
+    },
+    {
+      "name": "METHODOS_MANIFESTO(2).docx",
+      "sha256": "1618bcb8d0f850fb9918ce8ec39f6a3dd1d7ab126db4ca597966739ef11ba03e"
+    },
+    {
+      "name": "ALETHEIA_MANIFESTO(2).docx",
+      "sha256": "8846e187fe4fc3f128fc69624d81a57c3d5eeee4f15b4bf3142c2f2e0c572ce4"
+    },
+    {
+      "name": "MNEMOSYNE_MANIFESTO(2).docx",
+      "sha256": "53433d12bd6e983d2e791a3a1ee01c79937f00f068ae377d8c39b88add7e0da4"
+    },
+    {
+      "name": "KAIRON_MANIFESTO(2).docx",
+      "sha256": "3419f37461126fae16bcb44ba3769af26ab79aced94ae5ae78b898415e64f7b7"
+    },
+    {
+      "name": "Werkbank_Rahmenbedingungen_v1.0.docx",
+      "sha256": "9b5c831b7ff8ac56f404e4bed35de76692a47c969809a493a168c8c5a93823b1"
+    },
+    {
+      "name": "Werkbank_Handbuch_v1.0.docx",
+      "sha256": "1db3d43aacf14d6af5f6c97f4800df9a46d2d76295d34b54190ddfe6ef687eb7"
+    },
+    {
+      "name": "KAIRON_Handbuch_und_Beurteilung.docx",
+      "sha256": "47c8de0abccd74fd7c17d926a729592d4dbc3cdecc456a09b74ab5863f4358e7"
+    }
+  ]
+}

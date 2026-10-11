@@ -1,0 +1,83 @@
+# Configuration template: disabled until approved and qualified. No live model IDs or prices are asserted.
+schema_version: '1.0'
+revision: catalog-template-1
+purpose: configuration_template
+deployments:
+- id: anthropic-configured-model
+  provider_id: anthropic
+  adapter: anthropic
+  enabled: false
+  provider_model_id: null
+  canonical_model_id: null
+  model_family: null
+  shared_base_id: null
+  api_base: https://api.anthropic.com
+  secret_ref: secret://providers/anthropic
+  version_mode: unknown
+  capabilities:
+    text_input: unknown
+    vision_input: unknown
+    tool_calling: unknown
+    structured_output: unknown
+    streaming: unknown
+    context_tokens: null
+    output_tokens: null
+  allowed_data_labels:
+  - public
+  allowed_tool_scopes: []
+  processing_profile_ref: null
+  pricing_ref: null
+  qualification_refs: []
+  health: unknown
+- id: openai-configured-model
+  provider_id: openai
+  adapter: openai
+  enabled: false
+  provider_model_id: null
+  canonical_model_id: null
+  model_family: null
+  shared_base_id: null
+  api_base: https://api.openai.com
+  secret_ref: secret://providers/openai
+  version_mode: unknown
+  capabilities:
+    text_input: unknown
+    vision_input: unknown
+    tool_calling: unknown
+    structured_output: unknown
+    streaming: unknown
+    context_tokens: null
+    output_tokens: null
+  allowed_data_labels:
+  - public
+  allowed_tool_scopes: []
+  processing_profile_ref: null
+  pricing_ref: null
+  qualification_refs: []
+  health: unknown
+- id: google-configured-model
+  provider_id: google
+  adapter: google
+  enabled: false
+  provider_model_id: null
+  canonical_model_id: null
+  model_family: null
+  shared_base_id: null
+  api_base: https://generativelanguage.googleapis.com
+  secret_ref: secret://providers/google
+  version_mode: unknown
+  capabilities:
+    text_input: unknown
+    vision_input: unknown
+    tool_calling: unknown
+    structured_output: unknown
+    streaming: unknown
+    context_tokens: null
+    output_tokens: null
+  allowed_data_labels:
+  - public
+  allowed_tool_scopes: []
+  processing_profile_ref: null
+  pricing_ref: null
+  qualification_refs: []
+  health: unknown
