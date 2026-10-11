@@ -17,6 +17,7 @@ SCHEMA_NAMES = (
     "skill_manifest",
     "review_report",  # repository addition (S1)
     "claim_set",  # repository addition (S2)
+    "evaluation_verdict",  # repository addition (S3)
 )
 
 

@@ -17,7 +17,7 @@ unter `00_Basisdokumente/`, die Oberfläche ist in `design_handoff_phronesis_cam
 | `design_handoff_phronesis_campus_ui/` | UI-Handoff: Design System «Modernist», Ansichten, nicht verhandelbare UI-Regeln |
 | `CLAUDE.md` | Entwicklungsanweisung (Paketfassung plus Repo-Bezug) |
 
-## Stand: S0, S1 (mit Härtung S1.1) und S2 gebaut, offline geprüft
+## Stand: S0, S1 (mit Härtung S1.1), S2 und S3 gebaut, offline geprüft
 
 S0 = Verträge, Migrationen, echte lokale Anmeldung, Rollen, Policy, Audit/Outbox, Budget, Mock-Adapter.
 S1 = Provider-Adapter (Anthropic, OpenAI) hinter dem Gateway, Selector mit Kernprüfung, Neuplanung nach Ausfall,
@@ -26,6 +26,9 @@ S1.1 = gemeinsame Aufrufprüfung für jeden Modellaufruf, dauerhafte Aufruf- und
 Nachweise je Aufgabenklasse, konsistente Prüfabschlüsse, Schlüsselbindung an genehmigte Endpunkte.
 S2 = Internetdienst mit kontrolliertem Abruf, versionierte Quellen mit Fundstellen, Aussagen mit Evidenz (kein erfundener Messnachweis),
 Rückzug mit Neubewertung, Dossier mit hashgebundener Freigabe, dauerhafter Ablauf auf Temporal.
+S3 = Fabrik: Bedarfsnachweis, Kandidaten mit begrenzten Rechten, geschütztes versioniertes Prüfmaterial, unabhängige Qualifikation durch
+kanonisch anderes, selbst qualifiziertes Prüfmodell, automatische Aktivierung ohne Rückschritt, Herkunftsansicht, Stilllegung
+([docs/S3_UMSETZUNG.md](docs/S3_UMSETZUNG.md)).
 
 **Nichts davon ist live nachgewiesen.** Das Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid, siehe
 [docs/S1_UMSETZUNG.md](docs/S1_UMSETZUNG.md) Abschnitt 3. Befunde und Abnahmepunkte: [docs/S2_UMSETZUNG.md](docs/S2_UMSETZUNG.md).

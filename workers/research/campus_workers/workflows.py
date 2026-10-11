@@ -24,7 +24,9 @@ with workflow.unsafe.imports_passed_through():
     )
 
 RETRY = RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=1), backoff_coefficient=2.0)
+GENERATION_RETRY = RetryPolicy(maximum_attempts=1)  # a failed generation is not retried blindly; the workflow replans through the core
 STEP_TIMEOUT = timedelta(minutes=10)
+MAX_GENERATION_ATTEMPTS = 3
 
 
 @workflow.defn(name="ResearchTaskWorkflow")
@@ -58,15 +60,22 @@ class ResearchTaskWorkflow:
         self._result["source_ids"] = await workflow.execute_activity(fetch_sources, flow, start_to_close_timeout=STEP_TIMEOUT, retry_policy=RETRY)
         if stopped := self._check_stop():
             return stopped
-        self._stage = "routing"
-        decision_id = await workflow.execute_activity(authorize_route, flow, start_to_close_timeout=STEP_TIMEOUT, retry_policy=RETRY)
-        self._result["routing_decision_id"] = decision_id
-        if stopped := self._check_stop():
-            return stopped
-        self._stage = "generating"
-        run = await workflow.execute_activity(run_generation, RunArgs(flow.workspace_id, flow.task_id, decision_id, flow.correlation_id),
-                                              start_to_close_timeout=STEP_TIMEOUT, retry_policy=RETRY)
-        self._result["run"] = run
+        run: dict = {}
+        attempts: list[dict] = []
+        for _replan in range(MAX_GENERATION_ATTEMPTS):
+            self._stage = "routing"
+            decision_id = await workflow.execute_activity(authorize_route, flow, start_to_close_timeout=STEP_TIMEOUT, retry_policy=RETRY)
+            self._result["routing_decision_id"] = decision_id
+            if stopped := self._check_stop():
+                return stopped
+            self._stage = "generating"
+            run = await workflow.execute_activity(run_generation, RunArgs(flow.workspace_id, flow.task_id, decision_id, flow.correlation_id),
+                                                  start_to_close_timeout=STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
+            attempts.append({"routing_decision_id": decision_id, "state": run.get("state"), "end_reason": run.get("end_reason")})
+            self._result["run"], self._result["attempts"] = run, attempts
+            if run.get("state") == "finished" or run.get("end_reason") != "provider_error":
+                break
+            # provider failure inside the generation step: replan under the same constraints (chapter 10); the core excludes the failed deployment
         if run.get("state") != "finished":
             self._stage = "ended_without_result"
             return {**self._result, "end_reason": run.get("end_reason", "unknown")}

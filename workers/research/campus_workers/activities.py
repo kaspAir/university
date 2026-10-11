@@ -125,6 +125,10 @@ def run_generation(args: RunArgs) -> dict:
             return result
         except CampusError as err:
             db.rollback()
+            if err.code.value == "NO_ELIGIBLE_MODEL" and err.retryable:
+                # provider unavailable: the run is recorded as failed; the workflow replans (chapter 10) instead of a blind retry
+                attempt = db.execute(select(RunAttempt).where(RunAttempt.routing_decision_id == args.routing_decision_id)).scalar_one_or_none()
+                return {"run_attempt_id": attempt.id if attempt else None, "state": "failed", "end_reason": "provider_error", "error_code": err.code.value}
             raise _translate(err) from err
 
 

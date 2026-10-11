@@ -111,6 +111,7 @@ def get_task(task_id: str, actor: Actor = Depends(current_actor), db: Session = 
 
 class CandidateBody(BaseModel):
     document: dict
+    instructions: str | None = None  # skills: package content, bound by package_sha256
 
 
 @router.post("/agents/candidates", status_code=201)
@@ -125,7 +126,7 @@ def register_agent(body: CandidateBody, request: Request, actor: Actor = Depends
 @router.post("/skills/candidates", status_code=201)
 def register_skill(body: CandidateBody, request: Request, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)):
     def handler(correlation: str):
-        row = svc.register_skill(db, actor=actor, document=body.document, correlation_id=correlation)
+        row = svc.register_skill(db, actor=actor, document=body.document, correlation_id=correlation, instructions=body.instructions)
         return 201, {"skill_version_id": row.id, "ref": row.ref, "operating_status": row.operating_status}
     return execute_command(db, actor, request, command="skill.register", payload=body, handler=handler, object_type="skill")
 

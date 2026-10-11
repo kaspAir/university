@@ -48,6 +48,26 @@ Jeder Befund trägt Umsetzung oder begründete Widerlegung, die Tests und die Na
 | + | Idempotenz (nicht ausdrücklich genannt) | Aktivitäten liefern bei Wiederholung das registrierte Objekt; ausgeführte Route verbraucht; Idempotency-Key auf API-Ebene | `test_s2_workflow.py::test_activities_are_idempotent_on_replay`, `test_s0_flow.py::test_mandate_flow_versions_and_idempotency` | offline geprüft |
 | + | Projekt-/Mandats-/Budgetbindung (nicht ausdrücklich genannt) | Projekt nur mit freigegebenem Mandat; Aufgabenbudget als Kind des Projektbudgets; Reservierung an Route; Eltern im selben Projekt | `test_s0_flow.py::test_t02_*`, `::test_t03_*`, `::test_a05_*`, `::test_parent_task_must_belong_to_the_same_project` | offline geprüft |
 
+## 2a Vertiefungstests (Nachfrage nach dem Review)
+
+Jeder Test trennt drei Fragen, die nie verschmolzen werden dürfen (Art. 13): **struktureller Nachweis** (existiert ein echter,
+auffindbarer Beleg?), **inhaltliche Bewertung** (was sagt der getrennte Prüfer, und bleibt Dissens als Dissens stehen?) und
+**aktuelle Freigabefähigkeit** (darf genau diese Dossierfassung jetzt hinaus?).
+
+| Fall | Struktur | Inhalt | Freigabe | Test |
+| --- | --- | --- | --- | --- |
+| Gültige, aber sachlich unpassende Belegstelle | Evidenzlink echt und auffindbar, keine strukturellen Flags | Prüfer erhebt Einwand; die Aussagen des Laufs werden «bestritten» relativ zur Prüfung, nichts wird widerlegt | Freigabeachse blockiert, uneingeschränkte Freigabe verweigert | `test_s2_depth.py::test_valid_passage_that_does_not_support_the_claim` |
+| Ausfall innerhalb der Erzeugungsaktivität | Gescheiterter Versuch bleibt mit Endgrund `provider_error`; Neuplanung schliesst das Deployment aus | Prüfung des gelungenen Versuchs ohne Einwand | Entwurf freigebbar | `::test_provider_failure_inside_generation_is_replanned_by_the_workflow` |
+| Quelle → Aussage A → Aussage B | A mit Passagenbeleg, B ohne eigenen Beleg als markierte Hypothese, Abhängigkeitskante A→B | Saubere Prüfung lässt A beobachtet und B Hypothese; kein Konsens macht «gestützt» | Nach Rückzug der Quelle sind A und (über die Kante) B neu zu bewerten, Freigabe blockiert | `::test_chain_source_claim_a_claim_b` |
+| Rückzug nach erteilter Dossierfreigabe | Fassung 1 bleibt mit Hash und Freigabedatensatz erhalten | Aussagen zur Neubewertung markiert, nicht für falsch erklärt | Fassung 1 darf nicht mehr hinaus (`basis_withdrawn_after_approval`), Fassung 2 ist blockiert und unfreigegeben | `::test_retraction_after_dossier_approval_invalidates_release` |
+
+Dafür ergänzt: Einwände markieren die Aussagen des Laufs als bestritten; der Rückzug folgt den Abhängigkeitskanten; eine externe
+Freigabe scheitert, wenn nach der Ergebnisfreigabe eine Grundlage zurückgezogen wurde; der Workflow plant bei Providerausfall
+innerhalb der Erzeugung bis zu dreimal neu statt blind zu wiederholen.
+
+**Betriebsbeschränkung DNS-Rebinding:** siehe `docs/BETRIEB.md`, Abschnitt «Betriebsbeschränkung Internetdienst» (Ausgangsfilter im Netz,
+Leistungsebene bleibt `development_mock`, Inhalte sind Daten).
+
 ## 3 Nicht behauptet
 
 - Nichts in S0–S2 ist **live nachgewiesen**: alle Modellaufrufe liefen über den Mock-Adapter. Die Live-Tests (`tests/live`) bleiben übersprungen,

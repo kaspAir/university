@@ -23,7 +23,17 @@ from campus_domain.authz import authorize
 from campus_domain.errors import CampusError, ErrorCode
 from campus_infra.audit import Actor, record
 from campus_infra.ids import new_id, utcnow
-from campus_infra.models import ClaimVersion, EvidenceLink, Project, ReassessmentTask, Source, SourcePassage, SourceVersion, Task
+from campus_infra.models import (
+    ClaimVersion,
+    DependencyEdge,
+    EvidenceLink,
+    Project,
+    ReassessmentTask,
+    Source,
+    SourcePassage,
+    SourceVersion,
+    Task,
+)
 
 EXTRACTOR_VERSION = "campus-extract/1"
 SUPPORTED_TYPES = ("text/html", "text/plain", "application/xhtml+xml", "application/json")
@@ -240,6 +250,17 @@ def retract_source(db: Session, *, actor: Actor, source_id: str, reason: str, du
         .join(SourceVersion, SourceVersion.id == SourcePassage.source_version_id)
         .where(SourceVersion.source_id == source.id)
     ).scalars().unique().all()
+    affected = list(affected)
+    seen = {c.id for c in affected}
+    frontier = list(seen)
+    while frontier:  # dependents of dependents are affected too (chapter 14: dependency edges stay and propagate)
+        edges = db.execute(select(DependencyEdge).where(DependencyEdge.from_claim_version_id.in_(frontier))).scalars().all()
+        frontier = []
+        for edge in edges:
+            if edge.to_claim_version_id not in seen:
+                seen.add(edge.to_claim_version_id)
+                frontier.append(edge.to_claim_version_id)
+                affected.append(db.get(ClaimVersion, edge.to_claim_version_id))
     for claim in affected:
         claim.reassessment_required = True
     task: ReassessmentTask | None = None

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/evaluation_verdict.schema.json",
+  "title": "evaluation_verdict",
+  "description": "Repository addition (S3). Output contract of the independent evaluator judging one qualification case. The evaluator sees case input, rubric and the candidate's output, never the candidate's self-assessment. A verdict is a model opinion; the core aggregates and decides activation.",
+  "type": "object",
+  "properties": {
+    "passed": {"type": "boolean"},
+    "score": {"type": "integer", "minimum": 0, "maximum": 100},
+    "reasons": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+    "false_alarm_risk": {"enum": ["low", "medium", "high"]},
+    "uncertainties": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["passed", "score", "reasons", "false_alarm_risk", "uncertainties"],
+  "additionalProperties": false
+}

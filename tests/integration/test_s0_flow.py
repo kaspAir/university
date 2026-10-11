@@ -113,6 +113,11 @@ def govern(api: Api, boot: dict) -> dict:
                                "title": "Rechtliches Gehör (synthetisch)", "budget": "500.00"})
     assert r.status_code == 201, r.text
     project = r.json()
+    r = api.post("/needs", {"ref": "fixture-need-1", "project_id": project["project_id"], "gap": "Quellenanalyse für Testmaterial fehlt",
+                            "requested_specialization": "AI research methodology", "task_class": "source_analysis",
+                            "alternatives_considered": ["reuse an existing source analysis profile"],
+                            "expected_benefit": "Synthetischer Bedarf für Fixture-Profile"})
+    assert r.status_code == 201, r.text
     r = api.post("/agents/candidates", {"document": load_example("agent_profile")})
     assert r.status_code == 201, r.text
     return {"policy_id": policy_id, "catalog_id": catalog_id, "mandate": approved, "project": project,

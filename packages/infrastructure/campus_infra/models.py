@@ -242,6 +242,7 @@ class AgentProfileVersion(Base):
     document: Mapped[dict] = mapped_column(JSONB, nullable=False)
     operating_status: Mapped[str] = mapped_column(String(20), nullable=False)
     qualification_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    qualified_task_classes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)  # scope of automatic activation (S3)
     created_by: Mapped[str] = mapped_column(String(40), nullable=False)
     created_at: Mapped[datetime] = _ts()
 
@@ -256,6 +257,7 @@ class SkillVersion(Base):
     version: Mapped[str] = mapped_column(String(40), nullable=False)
     document: Mapped[dict] = mapped_column(JSONB, nullable=False)
     operating_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    instructions: Mapped[str | None] = mapped_column(Text)  # package content bound by package_sha256 (S3)
     created_by: Mapped[str] = mapped_column(String(40), nullable=False)
     created_at: Mapped[datetime] = _ts()
 
@@ -602,4 +604,91 @@ class WorkflowRun(Base):
     task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
     task_queue: Mapped[str] = mapped_column(String(80), nullable=False)
     started_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+# ---------------------------------------------------------------- S3 additions: agent/skill factory
+
+
+class NeedRecord(Base):
+    """Why a unit exists: triggering task, gap, alternatives considered, expected benefit, decision (chapter 7, Annex G)."""
+
+    __tablename__ = "need_records"
+    __table_args__ = (UniqueConstraint("workspace_id", "ref"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"))
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    gap: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_specialization: Mapped[str] = mapped_column(String(200), nullable=False)
+    task_class: Mapped[str] = mapped_column(String(120), nullable=False)
+    alternatives_considered: Mapped[list] = mapped_column(JSONB, nullable=False)
+    expected_benefit: Mapped[str] = mapped_column(Text, nullable=False)
+    decision: Mapped[str] = mapped_column(String(20), nullable=False)  # reuse | extend_skill | new_agent | new_skill
+    reuse_ref: Mapped[str | None] = mapped_column(String(120))
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class QualificationSuite(Base):
+    """Fixed, versioned test material. Protected suites hide their cases from producers (Art. 19, T05, T10)."""
+
+    __tablename__ = "qualification_suites"
+    __table_args__ = (UniqueConstraint("workspace_id", "ref", "version"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    task_class: Mapped[str] = mapped_column(String(120), nullable=False)
+    evaluator_task_class: Mapped[str] = mapped_column(String(120), nullable=False, default="evaluation")
+    threshold_percent: Mapped[int] = mapped_column(Integer, nullable=False)
+    protected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    cases: Mapped[list] = mapped_column(JSONB, nullable=False)
+    cases_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class EvaluationRun(Base):
+    """One qualification run of a candidate (profile or skill) with one deployment on one suite version, judged by a distinct model."""
+
+    __tablename__ = "evaluation_runs"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    candidate_kind: Mapped[str] = mapped_column(String(10), nullable=False)  # agent | skill
+    candidate_ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    candidate_deployment_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    candidate_canonical_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    evaluator_deployment_id: Mapped[str | None] = mapped_column(String(120))
+    evaluator_canonical_model_id: Mapped[str | None] = mapped_column(String(200))
+    suite_id: Mapped[str] = mapped_column(ForeignKey("qualification_suites.id"), nullable=False)
+    suite_ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    suite_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False)  # running | passed | failed | aborted
+    score: Mapped[int | None] = mapped_column(Integer)
+    baseline_score: Mapped[int | None] = mapped_column(Integer)
+    regression: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    activated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    activation_note: Mapped[str | None] = mapped_column(Text)
+    qualification_ref: Mapped[str | None] = mapped_column(String(120))
+    case_results: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    context_manifest: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)  # what each evaluator call received (A11)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RetirementRecord(Base):
+    __tablename__ = "retirement_records"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    candidate_kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    candidate_ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    successor_ref: Mapped[str | None] = mapped_column(String(120))
+    new_status: Mapped[str] = mapped_column(String(20), nullable=False)  # dormant | archived
+    decided_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = _ts()

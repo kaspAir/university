@@ -172,6 +172,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     for table in reversed(NEW_TABLES):
         op.drop_table(table)
+    # dossier artifacts exist only since this revision; they cannot live in the S1 schema
+    op.execute("DELETE FROM artifact_versions WHERE run_attempt_id IS NULL OR task_id IS NULL")
     op.drop_column("artifact_versions", "version")
     op.drop_column("artifact_versions", "project_id")
     op.alter_column("artifact_versions", "run_attempt_id", existing_type=sa.String(40), nullable=False)

@@ -109,7 +109,8 @@ def test_t09_retracted_source_marks_dependents_and_schedules_reassessment(campus
     r = api.post(f"/sources/{source_id}/retract", {"reason": "Quelle vom Herausgeber zurückgezogen", "due_days": 7})
     assert r.status_code == 200, r.text
     task = r.json()["reassessment_task"]
-    assert len(task["affected_claim_version_ids"]) == 3 and task["responsible_role"] == "research_director"
+    # three claims cite the source directly; the fourth depends on one of them and is affected through the edge (chapter 14)
+    assert len(task["affected_claim_version_ids"]) == 4 and task["responsible_role"] == "research_director"
     claims = api.get(f"/projects/{project_id}/claims").json()["claims"]
     flagged = [c for c in claims if c["reassessment_required"]]
     assert {c["claim_version_id"] for c in flagged} == set(task["affected_claim_version_ids"])

@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "score": 85,
+  "reasons": ["Die Antwort bindet jede Aussage an die vorgegebene Passage.", "Unsicherheiten sind benannt."],
+  "false_alarm_risk": "low",
+  "uncertainties": ["Synthetischer Prüffall; keine Aussage über reale Kompetenz."]
+}

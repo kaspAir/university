@@ -112,6 +112,19 @@ export CAMPUS_TEMPORAL_ADDRESS=localhost:7233
 zeigt Status und Stufe; `POST /api/v1/workflows/{id}/stop` signalisiert einen Stopp mit Grund. Quellen lassen sich auch einzeln
 über `POST /api/v1/sources/fetch` aufnehmen (öffentliche Ziele ohne Einzelgenehmigung, interne Netze nie).
 
+## Betriebsbeschränkung Internetdienst (bis zur Schliessung der DNS-Rebinding-Lücke)
+
+Der Abruf prüft alle aufgelösten Adressen eines Ziels **vor** der Verbindung (ADR-0009). Zwischen Prüfung und Verbindung kann ein
+Angreifer-DNS die Antwort wechseln (DNS-Rebinding). Bis der Abruf über einen eigenen Egress-Proxy läuft, der das tatsächliche
+Verbindungsziel prüft (S4), gilt:
+
+1. API- und Worker-Prozesse laufen in einem Netz, dessen **Ausgangsfilter** Verbindungen zu RFC-1918-Bereichen, Loopback, Link-Local
+   (169.254.0.0/16, fe80::/10), Metadaten-Adressen und zum internen Datenbank-/Temporal-Netz verwirft. Die Anwendungsprüfung ist die
+   erste, die Netzregel die zweite Barriere.
+2. Die Leistungsebene bleibt `development_mock`; `restricted_research` wird erst nach dem Egress-Proxy freigegeben.
+3. Abgerufene Inhalte gelten als Daten, nie als Anweisung; sie werden isoliert extrahiert und nicht ausgeführt.
+4. Keine Zugangsdaten für interne Dienste auf den Hosts der Abrufprozesse, die nicht zwingend nötig sind.
+
 ## Was noch fehlt
 
 - Zwei echte freigegebene Modellzugänge (Betriebsentscheid, S1-Tor); bis dahin Leistungsebene `development_mock`.

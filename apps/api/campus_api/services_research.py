@@ -35,6 +35,7 @@ from campus_domain.budget import Pricing, estimate_cost
 from campus_domain.errors import CampusError, ErrorCode
 from campus_domain.guards import InvocationContext, RunStartContext, check_invocation, check_run_start
 from campus_domain.money import Money, parse_money
+from campus_domain.qualification import check_tool_scopes
 from campus_domain.statuses import ActivationState, MandateState, OperatingStatus, QualificationStatus, RunEndReason, RunState
 from campus_gateway.adapters import build_adapters
 from campus_gateway.endpoints import check_api_base
@@ -48,10 +49,12 @@ from campus_infra.models import (
     AgentProfileVersion,
     ArtifactVersion,
     BudgetAccount,
+    ClaimVersion,
     FindingRecord,
     Institute,
     MandateVersion,
     ModelCatalogRevision,
+    NeedRecord,
     OutboxEvent,
     PricingVersion,
     Project,
@@ -208,6 +211,10 @@ def register_agent(db: Session, *, actor: Actor, document: dict, correlation_id:
                           blocked_action="agent.register")
     if profile.qualification_status != "not_evaluated":
         _resolve_qualification_refs(db, actor.workspace_id, profile.qualification_refs, what="Agentenprofil")
+    check_tool_scopes(profile.requested_tool_scopes, what="Agentenprofil")  # A10: no new privileges through registration
+    if not db.execute(select(NeedRecord).where(NeedRecord.workspace_id == actor.workspace_id, NeedRecord.ref == profile.need_record_ref)).first():
+        raise CampusError(ErrorCode.NEED_NOT_FOUND, f"need_record_ref {profile.need_record_ref!r} ist kein registrierter Bedarf (Art. 26, Anhang G)",
+                          blocked_action="agent.register", required_resolution="Bedarf zuerst mit POST /needs erfassen")
     ref = f"{profile.id}@{profile.version}"
     if find_agent(db, actor.workspace_id, ref) is not None:
         raise CampusError(ErrorCode.VERSION_CONFLICT, "Diese Profilfassung existiert bereits; neue Fassung nötig")
@@ -222,7 +229,7 @@ def register_agent(db: Session, *, actor: Actor, document: dict, correlation_id:
     return row
 
 
-def register_skill(db: Session, *, actor: Actor, document: dict, correlation_id: str) -> SkillVersion:
+def register_skill(db: Session, *, actor: Actor, document: dict, correlation_id: str, instructions: str | None = None) -> SkillVersion:
     authorize("skill.register", actor.roles)
     violations = validate_document("skill_manifest", document)
     if violations:
@@ -234,12 +241,19 @@ def register_skill(db: Session, *, actor: Actor, document: dict, correlation_id:
                           blocked_action="skill.register")
     if manifest.operating_status == "active" or manifest.qualification_refs:
         _resolve_qualification_refs(db, actor.workspace_id, manifest.qualification_refs, what="Skill")
+    check_tool_scopes(manifest.requested_tool_scopes, what="Skill")  # A10
+    if not db.execute(select(NeedRecord).where(NeedRecord.workspace_id == actor.workspace_id, NeedRecord.ref == manifest.origin_need_ref)).first():
+        raise CampusError(ErrorCode.NEED_NOT_FOUND, f"origin_need_ref {manifest.origin_need_ref!r} ist kein registrierter Bedarf (Art. 26)",
+                          blocked_action="skill.register", required_resolution="Bedarf zuerst mit POST /needs erfassen")
+    if instructions is not None and hashlib.sha256(instructions.encode("utf-8")).hexdigest() != manifest.package_sha256:
+        raise CampusError(ErrorCode.VALIDATION_ERROR, "package_sha256 passt nicht zu den gelieferten Anweisungen; das Paket ist hashgebunden",
+                          blocked_action="skill.register")
     ref = f"{manifest.id}@{manifest.version}"
     if db.execute(select(SkillVersion).where(SkillVersion.workspace_id == actor.workspace_id, SkillVersion.ref == ref)).first():
         raise CampusError(ErrorCode.VERSION_CONFLICT, "Diese Skillfassung existiert bereits")
     row = SkillVersion(id=new_id("SK"), ref=ref, workspace_id=actor.workspace_id, skill_id=manifest.id,
                        version=manifest.version, document=manifest.model_dump(), operating_status=manifest.operating_status,
-                       created_by=actor.actor_id)
+                       instructions=instructions, created_by=actor.actor_id)
     db.add(row)
     db.flush()
     record(db, actor=actor, command="skill.register", object_type="skill", object_id=manifest.id, object_version=manifest.version,
@@ -804,12 +818,20 @@ def start_review(db: Session, *, actor: Actor, run_id: str, correlation_id: str)
         findings.append(finding)
     blocking_open = any(f.severity == "blocking" for f in findings)
     task.state = "finished" if (report.verdict == "no_objection" and consistent and not blocking_open) else "waiting"
+    contested_claims: list[str] = []
+    if findings or not consistent:
+        # content judgement of the reviewer: the run's claims become "contested" relative to this review; nothing is refuted (Art. 13, 18)
+        for claim in db.execute(select(ClaimVersion).where(ClaimVersion.run_attempt_id == attempt.id)).scalars():
+            claim.epistemic_status = "contested"
+            claim.assessment_ref = f"review:{row.id}"
+            contested_claims.append(claim.id)
     db.flush()
     record(db, actor=actor, command="review.start", object_type="review_report", object_id=row.id, object_version=None,
            correlation_id=correlation_id, project_id=task.project_id, event_type="ReviewCompleted",
            payload={"run_attempt_id": attempt.id, "verdict": report.verdict, "consistent": consistent, "inconsistency": inconsistency,
                     "finding_ids": [f.id for f in findings], "reviewer_canonical_model_id": row.reviewer_canonical_model_id,
-                    "producer_canonical_model_id": row.producer_canonical_model_id, "artifact_sha256": artifact.sha256})
+                    "producer_canonical_model_id": row.producer_canonical_model_id, "artifact_sha256": artifact.sha256,
+                    "contested_claim_version_ids": contested_claims})
     if not consistent:
         record(db, actor=actor, command="review.start", object_type="review_report", object_id=row.id, object_version=None,
                correlation_id=correlation_id, project_id=task.project_id, event_type="ReviewInconsistent",

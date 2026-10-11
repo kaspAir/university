@@ -79,6 +79,12 @@ class MockAdapter:
             claims.append({"local_id": "m1", "statement": "Synthetischer Messwert ohne Lauf: 42 Prozent.", "kind": "computation",
                            "validity_conditions": "keine", "evidence": [], "depends_on": [c["local_id"] for c in claims[:1]]})
             return {"claims": claims, "open_questions": ["Mock: offene Frage"], "omissions": ["Mock: nichts Weiteres untersucht"]}
+        if "false_alarm_risk" in props:  # evaluation_verdict: the case fails when its input carries the marker FAIL
+            text_in = " ".join(str(b.get("text", "")) for b in request.content_blocks)
+            failed = "FAIL" in text_in
+            return {"passed": not failed, "score": 0 if failed else 100,
+                    "reasons": ["Mock-Prüfer: Marker FAIL im Fall" if failed else "Mock-Prüfer: Fall ohne Marker"],
+                    "false_alarm_risk": "high" if failed else "low", "uncertainties": ["Synthetische Prüfung ohne fachliche Kompetenz."]}
         if "verdict" in props:  # review_report: a task class containing "contested" yields objections (test switch)
             task_class = str(request.metadata.get("task_class", ""))
             verdict = "objections" if "contested" in task_class else "no_objection"

@@ -33,6 +33,11 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "publication.release": frozenset({Role.RESEARCH_DIRECTOR}),  # external release is reserved (Art. 11, 22)
     "workflow.start": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
     "task.hold.release": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),
+    "need.record": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "suite.create": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),  # protected test material (Art. 19, T05)
+    "suite.read_cases": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER, Role.REVIEWER}),
+    "evaluation.run": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),  # the campus may qualify autonomously (Art. 26)
+    "registry.retire": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER, Role.PRODUCER}),
     "budget.create_child": frozenset({Role.RESEARCH_DIRECTOR}),
     "project.create": frozenset({Role.RESEARCH_DIRECTOR}),
     "task.create": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),

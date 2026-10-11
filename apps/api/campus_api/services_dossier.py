@@ -138,6 +138,13 @@ def approve_artifact(db: Session, *, actor: Actor, artifact_id: str, expected_sh
     return approval
 
 
+def _open_reassessments_after(db: Session, project_id: str | None, since) -> list[ReassessmentTask]:
+    if project_id is None:
+        return []
+    return list(db.execute(select(ReassessmentTask).where(ReassessmentTask.project_id == project_id, ReassessmentTask.state == "open",
+                                                          ReassessmentTask.created_at > since)).scalars().all())
+
+
 def current_approval(db: Session, artifact: ArtifactVersion) -> Approval | None:
     return db.execute(select(Approval).where(Approval.artifact_version_id == artifact.id).order_by(Approval.created_at.desc())).scalars().first()
 
@@ -152,6 +159,12 @@ def release_publication(db: Session, *, actor: Actor, artifact_id: str, expected
     approval = current_approval(db, artifact)
     release_allowed(approval_hash=approval.artifact_sha256 if approval else None, artifact_hash=artifact.sha256,
                     approval_option=approval.option if approval else None)
+    withdrawn = _open_reassessments_after(db, artifact.project_id, approval.created_at)
+    if withdrawn:
+        raise CampusError(ErrorCode.FORBIDDEN,
+                          "Nach der Ergebnisfreigabe wurde eine Grundlage zurückgezogen; die Freigabe trägt diese Fassung nicht mehr (Art. 23). "
+                          "Neubewertung abschliessen, Dossier neu bauen, neu freigeben.",
+                          blocked_action="publication.release", details={"open_reassessments": [r.id for r in withdrawn]})
     decision_input = HumanDecisionInput(option=DecisionOption.ACCEPT, rationale=rationale, alternatives_presented=alternatives_presented,
                                         remaining_objections=remaining_objections, consequences=consequences)
     validate_decision(decision_input)
@@ -184,7 +197,8 @@ def project_artifacts(db: Session, *, actor: Actor, project_id: str) -> list[dic
         releases = db.execute(select(ReleaseAttempt).where(ReleaseAttempt.artifact_version_id == a.id)).scalars().all()
         out.append({"artifact_version_id": a.id, "kind": a.kind, "version": a.version, "sha256": a.sha256, "synthetic": a.synthetic,
                     "task_id": a.task_id, "run_attempt_id": a.run_attempt_id, "created_at": a.created_at,
-                    "approval": {"option": approval.option, "sha256": approval.artifact_sha256, "valid_for_current": approval.artifact_sha256 == a.sha256}
+                    "approval": {"option": approval.option, "sha256": approval.artifact_sha256, "valid_for_current": approval.artifact_sha256 == a.sha256,
+                                 "basis_withdrawn_after_approval": bool(_open_reassessments_after(db, a.project_id, approval.created_at))}
                     if approval else None,
                     "releases": [{"id": r.id, "target": r.target, "state": r.state} for r in releases]})
     return out

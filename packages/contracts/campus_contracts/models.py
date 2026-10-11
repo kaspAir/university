@@ -208,6 +208,16 @@ class ClaimSet(_Strict):
     omissions: list[str]
 
 
+class EvaluationVerdict(_Strict):
+    """Repository addition (S3): one evaluator verdict on one qualification case. A model opinion, aggregated by the core."""
+
+    passed: bool
+    score: int = Field(ge=0, le=100)
+    reasons: list[str] = Field(min_length=1)
+    false_alarm_risk: Literal["low", "medium", "high"]
+    uncertainties: list[str]
+
+
 MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "model_catalog": ModelCatalog,
     "task_need": TaskNeed,
@@ -217,4 +227,5 @@ MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "skill_manifest": SkillManifest,
     "review_report": ReviewReport,
     "claim_set": ClaimSet,
+    "evaluation_verdict": EvaluationVerdict,
 }
