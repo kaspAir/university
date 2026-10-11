@@ -147,7 +147,8 @@ def test_claimed_qualification_refs_must_resolve_at_registration(campus):
     skill = load_example("skill_manifest") | {"version": "7", "operating_status": "active", "qualification_refs": ["nicht-registriert"]}
     assert api.post("/skills/candidates", {"document": skill}).json()["code"] == "QUALIFICATION_MISSING"
     assert api.post("/qualifications", {"ref": "q-agent-1", "canonical_model_id": "fixture/model-a@1", "task_class": "source_analysis", "suite_ref": "s",
-                                        "result_summary": "ok", "passed": True, "evaluated_by": "fixture/model-b@1", "evaluated_by_kind": "model"}).status_code == 201
+                                        "result_summary": "ok", "passed": True, "evaluated_by": "fixture/model-b@1", "evaluated_by_kind": "model",
+                                        "profile_ref": "fixture-ai-researcher@7", "skill_refs": ["fixture-source-analysis@1"]}).status_code == 201
     doc["qualification_refs"] = ["q-agent-1"]
     assert api.post("/agents/candidates", {"document": doc}).status_code == 201
 
@@ -157,7 +158,8 @@ def test_runtime_catalog_binds_qualification_to_task_class(campus):
     for ref, canonical in [("fixture-eval-a", "fixture/model-a@1"), ("fixture-eval-b", "fixture/model-b@1"), ("fixture-eval-e", "fixture/model-e@1")]:
         api.post("/qualifications", {"ref": ref, "canonical_model_id": canonical, "task_class": "other_class", "suite_ref": "suite-1",
                                      "result_summary": "bestanden für eine andere Aufgabenklasse", "passed": True,
-                                     "evaluated_by": "fixture/model-b@1" if canonical != "fixture/model-b@1" else "fixture/model-a@1", "evaluated_by_kind": "model"})
+                                     "evaluated_by": "fixture/model-b@1" if canonical != "fixture/model-b@1" else "fixture/model-a@1", "evaluated_by_kind": "model",
+                                     "profile_ref": "fixture-ai-researcher@1", "skill_refs": ["fixture-source-analysis@1"]})
     doc = build_catalog_document() | {"revision": "runtime-2", "purpose": "runtime_snapshot"}
     catalog_id = api.post("/model-catalog/drafts", {"document": doc}, method="PUT").json()["catalog_id"]
     assert api.post(f"/model-catalog/{catalog_id}/activate").status_code == 200

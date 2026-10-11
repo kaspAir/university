@@ -94,8 +94,8 @@ def test_t12_candidate_cannot_certify_itself_and_unqualified_evaluators_do_not_c
     assert r.status_code == 409 and r.json()["code"] == "QUALIFICATION_MISSING" and "Selbstzertifikat" in r.json()["message"]
     # a self-written qualification record is rejected at the source
     r = api.post("/qualifications", {"ref": "self", "canonical_model_id": "fixture/model-a@1", "task_class": "source_analysis", "suite_ref": "s",
-                                     "result_summary": "ok", "passed": True, "evaluated_by": "fixture/model-a@1", "evaluated_by_kind": "model"})
-    assert r.status_code == 409
+                                     "result_summary": "ok", "passed": True, "evaluated_by": "fixture/model-a@1", "evaluated_by_kind": "model", "profile_ref": "fixture-ai-researcher@1", "skill_refs": ["fixture-source-analysis@1"]})
+    assert r.status_code == 409 and r.json()["code"] == "QUALIFICATION_MISSING"
     # and claiming task_qualified without resolvable refs stays a self-certificate (T12 at registration)
     doc = load_example("agent_profile") | {"version": "9", "qualification_status": "task_qualified", "qualification_refs": ["qr:invented"]}
     assert api.post("/agents/candidates", {"document": doc}).json()["code"] == "QUALIFICATION_MISSING"
@@ -165,9 +165,12 @@ def test_qualification_binds_profile_skills_model_and_task_class(campus):
     _suite(api, threshold=50)
     v2 = _candidate(api, version="2")
     run = _evaluate(api, project_id, v2).json()
-    assert run["activated"] is True and run["composition_key"] == f"{v2}+-+source_analysis"
+    assert run["activated"] is True and run["composition_key"] == f"{v2}+fixture-source-analysis@1+source_analysis"
     quals = {q["ref"]: q for q in api.get("/qualifications").json()}
-    assert quals[run["qualification_ref"]]["canonical_model_id"] == "fixture/model-a@1"
+    rec = quals[run["qualification_ref"]]
+    assert rec["canonical_model_id"] == "fixture/model-a@1" and rec["kind"] == "combination"
+    assert rec["profile_ref"] == v2 and rec["skill_refs"] == ["fixture-source-analysis@1"], "profile AND skills are bound jointly"
+    assert quals["boot-evaluator-b"]["kind"] == "bootstrap" and quals["boot-evaluator-b"]["profile_ref"] is None
     # runtime catalog: qualified tasks need the combination; the evaluator model B is qualified for "evaluation", not for source analysis
     from tests.conftest import build_catalog_document
 

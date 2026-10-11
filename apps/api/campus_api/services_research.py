@@ -326,14 +326,19 @@ def _failed_deployments(db: Session, task: Task) -> dict[str, str]:
 
 
 def _record_applies(rec: QualificationRecord, need: TaskNeed) -> bool:
-    """A record applies to a task when task class, profile (if bound) and skills (if bound) match (chapter 5: per combination)."""
+    """Applicability of a record to a task (chapter 5: qualification is per combination).
+
+    bootstrap:   human role approval for the canonical model and task class; profile and skills are not bound.
+    combination: applies only to the SAME profile and the SAME skill set. Additional, missing or re-versioned skills are a different
+                 combination and are not silently covered.
+    """
     if rec.task_class != need.task_class or not rec.passed:
         return False
-    if rec.profile_ref and rec.profile_ref != need.agent_profile_version_ref:
-        return False
-    if rec.skill_refs and not set(rec.skill_refs) <= set(need.skill_version_refs):
-        return False
-    return True
+    if rec.kind == "bootstrap":
+        return True
+    if rec.profile_ref is None or rec.skill_refs is None:
+        return False  # malformed combination record: never treated as coverage
+    return rec.profile_ref == need.agent_profile_version_ref and set(rec.skill_refs) == set(need.skill_version_refs)
 
 
 def _qualification_evidence(db: Session, workspace_id: str, catalog: ModelCatalog, need: TaskNeed) -> dict[str, list[dict]]:
@@ -356,7 +361,8 @@ def _qualification_evidence(db: Session, workspace_id: str, catalog: ModelCatalo
             if rec.ref in seen:
                 continue
             seen.add(rec.ref)
-            items.append({"ref": rec.ref, "verified": True, "task_class": rec.task_class, "applies_to_task": rec.task_class == need.task_class,
+            items.append({"ref": rec.ref, "verified": True, "kind": rec.kind, "task_class": rec.task_class,
+                          "applies_to_task": rec.task_class == need.task_class,
                           "applies_to_combination": _record_applies(rec, need) and rec.canonical_model_id == dep.canonical_model_id,
                           "profile_ref": rec.profile_ref, "skill_refs": rec.skill_refs, "suite_ref": rec.suite_ref,
                           "result_summary": rec.result_summary, "passed": rec.passed, "evaluated_by_kind": rec.evaluated_by_kind,
@@ -402,16 +408,32 @@ def _task_class_exclusions(catalog: ModelCatalog, evidence: dict[str, list[dict]
     return excluded
 
 
+HARNESS_REF = f"{HARNESS_PROFILE['id']}@{HARNESS_PROFILE['version']}"
+
+
 def load_composition(db: Session, workspace_id: str, need: TaskNeed, mandate_ref: str | None) -> Composition:
-    """The one composition used for evaluation and execution alike: registered profile document + registered skills + task."""
-    agent = find_agent(db, workspace_id, need.agent_profile_version_ref)
-    profile_doc = agent.document if agent else HARNESS_PROFILE
+    """The one composition used for evaluation and execution alike: registered profile document + registered skills + task.
+    A referenced skill (or profile) that is not registered stops the build; nothing is silently left out."""
+    if need.agent_profile_version_ref == HARNESS_REF:
+        profile_doc = HARNESS_PROFILE
+    else:
+        agent = find_agent(db, workspace_id, need.agent_profile_version_ref)
+        if agent is None:
+            raise CampusError(ErrorCode.AGENT_NOT_REGISTERED, f"Profil {need.agent_profile_version_ref} ist nicht registriert; kein Aufbau",
+                              blocked_action="composition.build")
+        profile_doc = agent.document
     skills: list[SkillInput] = []
+    missing: list[str] = []
     for ref in need.skill_version_refs:
         row = db.execute(select(SkillVersion).where(SkillVersion.workspace_id == workspace_id, SkillVersion.ref == ref)).scalar_one_or_none()
-        if row is not None:
-            skills.append(SkillInput(ref=row.ref, purpose=row.document["purpose"], limitations=tuple(row.document.get("limitations", [])),
-                                     instructions=row.instructions))
+        if row is None:
+            missing.append(ref)
+            continue
+        skills.append(SkillInput(ref=row.ref, purpose=row.document["purpose"], limitations=tuple(row.document.get("limitations", [])),
+                                 instructions=row.instructions))
+    if missing:
+        raise CampusError(ErrorCode.VALIDATION_ERROR, f"Referenzierte Skills sind nicht registriert: {missing}; Aufbau gestoppt, kein Modellaufruf",
+                          blocked_action="composition.build", required_resolution="Skillfassungen registrieren oder Aufgabe ohne sie planen")
     return compose(profile_doc, skills, task_class=need.task_class, data_labels=list(need.data_labels), mandate_ref=mandate_ref)
 
 
@@ -680,6 +702,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     )
     check_run_start(ctx)
     assert decision is not None and agent is not None and policy is not None and generation is not None
+    composition = load_composition(db, actor.workspace_id, need, need.mandate_version_ref)  # stops before any call order if a skill is missing
     attempt_no = (db.execute(select(func.max(RunAttempt.attempt_no)).where(RunAttempt.task_id == task.id)).scalar() or 0) + 1
     attempt = RunAttempt(id=new_id("R"), workspace_id=actor.workspace_id, task_id=task.id, attempt_no=attempt_no,
                          routing_decision_id=decision.id, agent_profile_version_id=agent.id, state=RunState.RUNNING.value)
@@ -701,7 +724,6 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         content_blocks.append({"type": "text", "text": f"[passage_id={p['passage_id']} quelle={p['source_id']} v{p['version']}]\n{p['text']}",
                                "data_label": need.data_labels[0], "origin": "source_passage"})
     structured = deployment.capabilities.structured_output == "supported"
-    composition = load_composition(db, actor.workspace_id, need, need.mandate_version_ref)  # same build as in qualification runs
     request = LLMRequest(
         invocation_id=f"{attempt.id}:gen:1", deployment_id=deployment.id,
         system_rules=composition.system_rules + " Antworte ausschliesslich im vorgegebenen JSON-Format.",

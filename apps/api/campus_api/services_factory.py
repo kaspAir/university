@@ -201,8 +201,11 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     if cand_dep is None:
         raise CampusError(ErrorCode.NOT_FOUND, "Kandidaten-Deployment nicht im aktiven Katalog", blocked_action="evaluation.run")
     # the evaluation task: a real task under the project so budget, audit and routing records bind to it
-    need_doc = {"schema_version": "1.0", "agent_profile_version_ref": candidate_ref if candidate_kind == "agent" else "evaluation-harness@1",
-                "skill_version_refs": [candidate_ref] if candidate_kind == "skill" else [], "role": "producer", "task_class": suite.task_class,
+    from .services_research import HARNESS_REF
+
+    need_doc = {"schema_version": "1.0", "agent_profile_version_ref": candidate_ref if candidate_kind == "agent" else HARNESS_REF,
+                "skill_version_refs": [candidate_ref] if candidate_kind == "skill" else list(candidate.document.get("skill_version_refs", [])),
+                "role": "producer", "task_class": suite.task_class,
                 "language": "de-CH", "data_labels": ["public"], "required_features": ["text_input", "structured_output"],
                 "context_tokens_estimate": 4000, "max_output_tokens": 1500, "required_tool_scopes": [], "substantive_contributor_model_ids": [],
                 "qualification_mode": "sandbox_experiment", "routing_policy_ref": policy.revision}
@@ -353,8 +356,7 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
                                    task_class=suite.task_class, suite_ref=f"{suite.ref}@{suite.version}",
                                    result_summary=f"{score}% der Fälle bestanden (Schwelle {suite.threshold_percent}%), Kombination {composition.combination_key}",
                                    passed=True, evaluated_by=eval_dep.canonical_model_id or "", evaluated_by_kind="model", created_by=actor.actor_id,
-                                   profile_ref=composition.profile_ref if candidate_kind == "agent" else None,
-                                   skill_refs=list(composition.skill_refs) if candidate_kind == "skill" else None))
+                                   kind="combination", profile_ref=composition.profile_ref, skill_refs=sorted(composition.skill_refs)))
         if candidate_kind == "agent":
             candidate.operating_status = "active"
             candidate.qualification_status = "task_qualified"

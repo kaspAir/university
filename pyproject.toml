@@ -24,6 +24,8 @@ filterwarnings = ["error::DeprecationWarning:campus_.*"]
 line-length = 140
 target-version = "py312"
 src = ["packages/domain", "packages/contracts", "packages/infrastructure", "services/llm_gateway", "workers/research", "apps/api"]
+# The base package under 00_Basisdokumente is normative input (delivered by the client), not code we maintain.
+extend-exclude = ["00_Basisdokumente", "design_handoff_phronesis_campus_ui"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B", "UP"]

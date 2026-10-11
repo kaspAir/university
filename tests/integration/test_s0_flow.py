@@ -118,6 +118,8 @@ def govern(api: Api, boot: dict) -> dict:
                             "alternatives_considered": ["reuse an existing source analysis profile"],
                             "expected_benefit": "Synthetischer Bedarf für Fixture-Profile"})
     assert r.status_code == 201, r.text
+    r = api.post("/skills/candidates", {"document": load_example("skill_manifest")})  # the fixture agent references this skill version
+    assert r.status_code == 201, r.text
     r = api.post("/agents/candidates", {"document": load_example("agent_profile")})
     assert r.status_code == 201, r.text
     return {"policy_id": policy_id, "catalog_id": catalog_id, "mandate": approved, "project": project,

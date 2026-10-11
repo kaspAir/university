@@ -56,7 +56,7 @@ def test_runtime_catalog_needs_resolvable_qualification_evidence(campus):
         r = api.post("/qualifications", {"ref": ref, "canonical_model_id": canonical, "task_class": "source_analysis",
                                          "suite_ref": "suite-1", "result_summary": "synthetischer Testsatz bestanden", "passed": True,
                                          "evaluated_by": "fixture/model-b@1" if canonical != "fixture/model-b@1" else "fixture/model-a@1",
-                                         "evaluated_by_kind": "model"})
+                                         "evaluated_by_kind": "model", "profile_ref": "fixture-ai-researcher@1", "skill_refs": ["fixture-source-analysis@1"]})
         assert r.status_code == 201, r.text
     assert api.post(f"/model-catalog/{catalog_id}/activate").status_code == 200
 

@@ -24,6 +24,7 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "pricing.set": frozenset({Role.OPERATOR}),
     "processing_profile.approve": frozenset({Role.RESEARCH_DIRECTOR}),  # data authorization is a protection standard (Art. 11)
     "qualification.record": frozenset({Role.RESEARCH_DIRECTOR, Role.REVIEWER}),
+    "qualification.bootstrap": frozenset({Role.RESEARCH_DIRECTOR}),  # role approvals that end the certification regress (chapter 7)
     "catalog.discover": frozenset({Role.OPERATOR}),
     "review.start": frozenset({Role.REVIEWER, Role.RESEARCH_DIRECTOR}),
     "source.fetch": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),

@@ -6,9 +6,11 @@ Stand: 11.10.2026 · Status: angenommen · Bezug: Architektur Kap. 7 (ADR-04 der
 1. Eine Einheit entsteht nur aus einem registrierten Bedarf (NeedRecord). Das Register entscheidet aus echten Daten über Wiederverwendung.
 2. Kandidaten tragen nur Rechte aus der Werkzeugkontrolle; alles andere ist eine Softwareänderung (A10).
 3. Prüfmaterial ist versioniert, geschützt und unveränderlich; ein geändertes Kriterium ist eine neue Fassung (T05, T10).
-4. Qualifiziert wird je Kombination (Profil oder Skill, Deployment, Aufgabenklasse) durch einen kanonisch verschiedenen, selbst für die
-   Prüfaufgabe qualifizierten Prüfer auf festem Material. Der Prüfer sieht Fall, Rubrik und Ausgabe, nie eine Selbsteinschätzung (A11).
-   Der Zertifizierungsregress endet beim menschlich eingetragenen Bootstrap-Prüfer (Kap. 7).
+4. Qualifiziert wird je Kombination (Profil **und** exakte Skillmenge, kanonisches Modell, Aufgabenklasse) durch einen kanonisch verschiedenen,
+   selbst für die Prüfaufgabe qualifizierten Prüfer auf festem Material. Ein Nachweis trägt die Kombination als Ganzes (`kind=combination`);
+   eine andere Skillmenge oder -fassung ist eine andere Kombination. Fehlt ein referenzierter Skill, stoppt der Aufbau vor dem Modellaufruf. Der Prüfer sieht Fall, Rubrik und Ausgabe, nie eine Selbsteinschätzung (A11).
+   Der Zertifizierungsregress endet bei einer menschlich eingetragenen Bootstrap-Freigabe (`kind=bootstrap`, nur Forschungsleitung); sie bindet
+   ein kanonisches Modell an eine Aufgabenklasse und weder Profil noch Skills. Die beiden Arten werden nie gemischt (Kap. 7).
 5. Aktiviert wird automatisch durch den Kern, nur bei bestandenem Satz und ohne Rückschritt gegenüber der aktiven Fassung; Aktivierung
    erweitert den Geltungsbereich um genau die geprüfte Aufgabenklasse. Alte Fassungen werden nicht still abgelöst (T17).
 6. Jeder Prüfaufruf ist ein regulärer Modellaufruf: Route, gebundene Reservierung, Journal, gemeinsame Vorprüfung, Budget unter einem Projekt.
