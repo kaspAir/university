@@ -7,12 +7,12 @@
 //   university main         → Prüfung + Tests + Deploy prod
 //
 // Tests laufen gegen ein echtes PostgreSQL 16 (Sidecar-Container im Build-Netz), kein SQLite-Ersatz
-// (Paket-CLAUDE.md, docs/S0_VORSCHLAG.md). Die Deploy-Stages sind absichtlich NICHT aktiviert: Zielhost und
-// Betriebsform sind noch zu entscheiden (Architektur Kap. 24, S0-Vorschlag Lücke L2).
+// (Paket-CLAUDE.md, docs/S0_VORSCHLAG.md). Die Stage braucht nur die Docker-Kommandozeile im Jenkins-Container,
+// kein Docker-Pipeline-Plugin. Der Workspace liegt im Jenkins-Volume; der Testcontainer bindet dasselbe Volume ein
+// (JENKINS_HOME_VOLUME, Standard: university_jenkins_data aus docker-compose.jenkins.yml).
 //
-// Voraussetzungen Jenkins:
-//   - Plugins: Pipeline, Git, Docker Pipeline, JUnit, Credentials (später SSH Agent)
-//   - Docker-Socket im Jenkins-Container (docker-compose.jenkins.yml)
+// Die Deploy-Stages sind absichtlich NICHT aktiviert: Zielhost und Betriebsform sind noch zu entscheiden
+// (Architektur Kap. 24, S0-Vorschlag Lücke L2).
 
 pipeline {
     agent any
@@ -26,6 +26,7 @@ pipeline {
 
     environment {
         REPO_URL = 'https://github.com/kaspAir/university'
+        JENKINS_HOME_VOLUME = 'university_jenkins_data'
     }
 
     stages {
@@ -37,6 +38,7 @@ pipeline {
                     echo "Commit: $(git rev-parse --short HEAD)"
                     test -f Jenkinsfile
                     test -f CLAUDE.md
+                    test -f ci/run_tests.sh
                     test -f 00_Basisdokumente/Phronesis_Forschungsverfassung_V0.2.docx
                     test -f 00_Basisdokumente/Phronesis_Campus_Architektur_V0.1.md
                     test -f 00_Basisdokumente/Phronesis_Campus_V0.1/MANIFEST.sha256.json
@@ -47,38 +49,27 @@ pipeline {
 
         stage('Tests gegen PostgreSQL') {
             steps {
-                script {
-                    def net = ("campus-ci-" + env.BUILD_TAG).replaceAll(/[^A-Za-z0-9_.-]/, '-').toLowerCase()
-                    sh "docker network create ${net}"
-                    try {
-                        docker.image('postgres:16').withRun(
-                            "--network ${net} --name pg-${net} " +
-                            "-e POSTGRES_USER=campus_owner -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=campus_test"
-                        ) { pg ->
-                            docker.image('python:3.12-slim').inside(
-                                "--network ${net} -u root " +
-                                "-e CAMPUS_TEST_DATABASE_URL=postgresql+psycopg://campus_owner:ci@pg-${net}:5432/campus_test " +
-                                "-e CAMPUS_CAPABILITY_LEVEL=development_mock -e PIP_DISABLE_PIP_VERSION_CHECK=1"
-                            ) {
-                                sh '''
-                                    set -e
-                                    python --version
-                                    pip install --no-cache-dir -r requirements-dev.txt
-                                    # auf die Datenbank warten (max. 60 s)
-                                    for i in $(seq 1 30); do
-                                        python -c "import os, psycopg; psycopg.connect(os.environ['CAMPUS_TEST_DATABASE_URL'].replace('postgresql+psycopg', 'postgresql')).close()" && break
-                                        sleep 2
-                                    done
-                                    mkdir -p reports
-                                    pytest -q --junitxml=reports/junit.xml
-                                    ruff check apps packages services tests migrations
-                                '''
-                            }
-                        }
-                    } finally {
-                        sh "docker network rm ${net} || true"
+                sh '''
+                    set -eu
+                    NET="campus-ci-$(printf '%s' "$BUILD_TAG" | tr -c 'A-Za-z0-9_.-' '-' | tr 'A-Z' 'a-z')"
+                    PG="pg-$NET"
+                    cleanup() {
+                        docker rm -f "$PG" >/dev/null 2>&1 || true
+                        docker network rm "$NET" >/dev/null 2>&1 || true
                     }
-                }
+                    trap cleanup EXIT
+                    cleanup
+                    docker network create "$NET"
+                    docker run -d --name "$PG" --network "$NET" \
+                        -e POSTGRES_USER=campus_owner -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=campus_test \
+                        postgres:16
+                    docker run --rm --network "$NET" \
+                        -u "$(id -u):$(id -g)" -e HOME=/tmp \
+                        -v "$JENKINS_HOME_VOLUME:/var/jenkins_home" -w "$WORKSPACE" \
+                        -e CAMPUS_TEST_DATABASE_URL="postgresql+psycopg://campus_owner:ci@$PG:5432/campus_test" \
+                        -e CAMPUS_CAPABILITY_LEVEL=development_mock -e PIP_DISABLE_PIP_VERSION_CHECK=1 \
+                        python:3.12-slim sh ci/run_tests.sh
+                '''
             }
             post {
                 always {

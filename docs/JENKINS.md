@@ -35,11 +35,11 @@ Dann im Browser `http://localhost:8083` öffnen, das Passwort eingeben und
 
 Unter *Manage Jenkins → Plugins → Available* zusätzlich installieren:
 
-- **Docker Pipeline** (`docker-workflow`): Test-Stage läuft im `python:3.12-slim`-Container
 - **SSH Agent** (`ssh-agent`): für den späteren Deploy per SSH
-- **JUnit** und **Git** sind in den «suggested plugins» enthalten
+- **JUnit**, **Git** und **Pipeline** sind in den «suggested plugins» enthalten
 
-Das entspricht dem Plugin-Satz des HERMES-PIA-Jenkins.
+Das Docker-Pipeline-Plugin ist **nicht** nötig: Die Test-Stage benutzt nur die Docker-Kommandozeile, die im
+Jenkins-Image enthalten ist (`Dockerfile.jenkins`).
 
 ## 4. Credentials
 
@@ -79,8 +79,11 @@ absichtlich mit einer klaren Meldung ab, bis Zielhost und Betriebsform entschied
 ### Was die Test-Stage tut
 
 Sie legt je Build ein Docker-Netz an, startet darin `postgres:16` als Sidecar und führt im Container
-`python:3.12-slim` die Abhängigkeiten aus `requirements-dev.txt`, `pytest` (Unit, Integration gegen das
-Sidecar-PostgreSQL, Adapterverträge, statische Grenzen) und `ruff` aus. Die Integrationstests setzen das
+`python:3.12-slim` das Skript `ci/run_tests.sh` aus: Abhängigkeiten aus `requirements-dev.txt`, `pytest`
+(Unit, Integration gegen das Sidecar-PostgreSQL, Adapterverträge, statische Grenzen) und `ruff`. Der Workspace
+liegt im Jenkins-Volume `university_jenkins_data`; der Testcontainer bindet dieses Volume unter demselben Pfad
+ein und läuft mit der Benutzerkennung des Jenkins-Prozesses, damit keine root-eigenen Dateien zurückbleiben.
+Heisst das Volume anders, in der Pipeline `JENKINS_HOME_VOLUME` anpassen. Die Integrationstests setzen das
 Schema per Alembic auf und ab. Ohne erreichbare Datenbank würden sie **übersprungen** gemeldet, nie
 durch SQLite ersetzt. Im CI gibt es keine Rolle `campus_app`; die Migration überspringt dann nur die
 Rechtevergabe, der Append-only-Trigger auf `audit_events` wird trotzdem angelegt und getestet.
