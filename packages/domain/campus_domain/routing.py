@@ -41,7 +41,11 @@ R_EXCLUDED = "EXCLUDED:"  # operational exclusion, e.g. FAILED_IN_ATTEMPT:<run i
 
 
 def exclusion_reasons(
-    task: TaskNeed, dep: Deployment, policy: RoutingPolicy, excluded: dict[str, str] | None = None
+    task: TaskNeed,
+    dep: Deployment,
+    policy: RoutingPolicy,
+    excluded: dict[str, str] | None = None,
+    qualified_deployments: set[str] | None = None,
 ) -> list[str]:
     """All hard-filter violations of one deployment for one task. Empty list means eligible."""
     reasons: list[str] = []
@@ -69,12 +73,11 @@ def exclusion_reasons(
         reasons.append(R_CONTEXT)
     if caps.output_tokens is None or caps.output_tokens < task.max_output_tokens:
         reasons.append(R_OUTPUT)
-    if (
-        policy.hard_rules.qualified_combinations_required
-        and task.qualification_mode == "qualified"
-        and not dep.qualification_refs
-    ):
-        reasons.append(R_QUALIFICATION)
+    if policy.hard_rules.qualified_combinations_required and task.qualification_mode == "qualified":
+        # With a register view supplied, qualification means a passed record for this combination; otherwise the catalog's declaration.
+        qualified = (dep.id in qualified_deployments) if qualified_deployments is not None else bool(dep.qualification_refs)
+        if not qualified:
+            reasons.append(R_QUALIFICATION)
     if dep.pricing_ref is None:
         reasons.append(R_PRICING)
     if task.role in {"reviewer", "replicator"} and dep.canonical_model_id in task.substantive_contributor_model_ids:
@@ -83,11 +86,15 @@ def exclusion_reasons(
 
 
 def assess_candidates(
-    task: TaskNeed, catalog: ModelCatalog, policy: RoutingPolicy, excluded: dict[str, str] | None = None
+    task: TaskNeed,
+    catalog: ModelCatalog,
+    policy: RoutingPolicy,
+    excluded: dict[str, str] | None = None,
+    qualified_deployments: set[str] | None = None,
 ) -> list[CandidateAssessment]:
     assessments = []
     for dep in catalog.deployments:
-        reasons = exclusion_reasons(task, dep, policy, excluded)
+        reasons = exclusion_reasons(task, dep, policy, excluded, qualified_deployments)
         assessments.append(
             CandidateAssessment(
                 deployment_id=dep.id,
@@ -111,6 +118,7 @@ def select_reviewer(
     catalog: ModelCatalog,
     policy: RoutingPolicy,
     excluded: dict[str, str] | None = None,
+    qualified_deployments: set[str] | None = None,
 ) -> Deployment:
     """Pick a review deployment that is canonically distinct from the producer and all prior contributors.
 
@@ -128,7 +136,7 @@ def select_reviewer(
     for dep in catalog.deployments:
         if dep.id == selected.id:
             continue
-        reasons = exclusion_reasons(review_task, dep, policy, excluded)
+        reasons = exclusion_reasons(review_task, dep, policy, excluded, qualified_deployments)
         if dep.canonical_model_id == selected.canonical_model_id:
             reasons.append(R_SAME_CANONICAL)  # aliases are not diversity (A03)
         if dep.shared_base_id and dep.shared_base_id == selected.shared_base_id:
@@ -164,13 +172,14 @@ def validate_proposal(
     catalog: ModelCatalog,
     policy: RoutingPolicy,
     excluded: dict[str, str] | None = None,
+    qualified_deployments: set[str] | None = None,
 ) -> ValidatedRoute:
     """Technical admission of a proposal. Plausible language replaces no permission (chapter 9, step 5)."""
     if policy.activation_state != "active":
         raise CampusError(ErrorCode.POLICY_NOT_ACTIVE, "Routing-Policy ist nicht aktiv", policy_version=policy.revision)
     if proposal.task_id != task.task_id:
         raise CampusError(ErrorCode.PROPOSAL_INVALID, "Vorschlag gehört zu einer anderen Aufgabe", policy_version=policy.revision)
-    assessments = assess_candidates(task, catalog, policy, excluded)
+    assessments = assess_candidates(task, catalog, policy, excluded, qualified_deployments)
     by_id = {a.deployment_id: a for a in assessments}
     selected_assessment = by_id.get(proposal.selected_deployment_id)
     if selected_assessment is None:
@@ -211,12 +220,16 @@ def validate_proposal(
                 policy_version=policy.revision,
             )
     needs_review = review_required(task, policy)
-    reviewer = select_reviewer(task, selected, catalog, policy, excluded) if needs_review else None
+    reviewer = select_reviewer(task, selected, catalog, policy, excluded, qualified_deployments) if needs_review else None
     return ValidatedRoute(selected, reviewer, assessments, proposal, needs_review)
 
 
 def deterministic_proposal(
-    task: TaskNeed, catalog: ModelCatalog, policy: RoutingPolicy, excluded: dict[str, str] | None = None
+    task: TaskNeed,
+    catalog: ModelCatalog,
+    policy: RoutingPolicy,
+    excluded: dict[str, str] | None = None,
+    qualified_deployments: set[str] | None = None,
 ) -> RouteProposal:
     """Pre-approved deterministic rule (chapter 10). Only when the policy explicitly allows one."""
     if policy.deterministic_fallback_rule is None:
@@ -227,7 +240,7 @@ def deterministic_proposal(
             required_resolution="Selector-Pool konfigurieren oder deterministic_fallback_rule setzen",
             policy_version=policy.revision,
         )
-    assessments = assess_candidates(task, catalog, policy, excluded)
+    assessments = assess_candidates(task, catalog, policy, excluded, qualified_deployments)
     eligible = sorted((a for a in assessments if a.eligible), key=lambda a: a.deployment_id)
     if not eligible:
         raise CampusError(

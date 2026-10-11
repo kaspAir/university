@@ -44,7 +44,7 @@ from campus_infra.models import (
 )
 
 from . import services_research
-from .services_research import _gateway, _loaded_policy_and_catalog, _pricing, _settle_after_failure, _settle_from_usage
+from .services_research import _gateway, _loaded_policy_and_catalog, _pricing, _settle_after_failure, _settle_from_usage, load_composition
 
 EVALUATOR_TASK_CLASS = "evaluation"
 
@@ -153,8 +153,10 @@ def _evaluator_qualified(db: Session, workspace_id: str, canonical: str | None, 
                                                         QualificationRecord.passed.is_(True))).first() is not None
 
 
-def _baseline(db: Session, workspace_id: str, candidate_kind: str, logical_id: str, suite_ref: str, exclude_ref: str) -> int | None:
-    """Score of the currently active version of the same logical unit on the same suite (for the regression check)."""
+def _baseline(db: Session, workspace_id: str, candidate_kind: str, logical_id: str, suite_ref: str, exclude_ref: str,
+              cases_sha256: str | None = None) -> int | None:
+    """Score of the currently active version of the same logical unit on COMPARABLE material: same suite ref and identical cases hash.
+    A new suite version with other cases is not comparable; then there is no baseline (S3 review)."""
     if candidate_kind == "agent":
         active = db.execute(select(AgentProfileVersion).where(AgentProfileVersion.workspace_id == workspace_id, AgentProfileVersion.profile_id == logical_id,
                                                               AgentProfileVersion.operating_status == "active", AgentProfileVersion.ref != exclude_ref)).scalars().all()
@@ -164,9 +166,12 @@ def _baseline(db: Session, workspace_id: str, candidate_kind: str, logical_id: s
     refs = [a.ref for a in active]
     if not refs:
         return None
-    run = db.execute(select(EvaluationRun).where(EvaluationRun.workspace_id == workspace_id, EvaluationRun.candidate_ref.in_(refs),
-                                                 EvaluationRun.suite_ref == suite_ref, EvaluationRun.activated.is_(True))
-                     .order_by(EvaluationRun.created_at.desc())).scalars().first()
+    stmt = (select(EvaluationRun).join(QualificationSuite, QualificationSuite.id == EvaluationRun.suite_id)
+            .where(EvaluationRun.workspace_id == workspace_id, EvaluationRun.candidate_ref.in_(refs), EvaluationRun.suite_ref == suite_ref,
+                   EvaluationRun.activated.is_(True)))
+    if cases_sha256:
+        stmt = stmt.where(QualificationSuite.cases_sha256 == cases_sha256)
+    run = db.execute(stmt.order_by(EvaluationRun.created_at.desc())).scalars().first()
     return run.score if run else None
 
 
@@ -183,12 +188,9 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     suite = _latest_suite(db, actor.workspace_id, suite_ref, suite_version)
     if candidate_kind == "agent":
         candidate = services_research.find_agent(db, actor.workspace_id, candidate_ref)
-        instructions = None if candidate is None else (f"Fachprofil {candidate.document['primary_specialization']}. Zuständigkeit: {candidate.document['scope']}. "
-                                                        f"Nicht zuständig: {'; '.join(candidate.document['out_of_scope']) or 'keine Angabe'}.")
         logical_id = candidate.profile_id if candidate else None
     else:
         candidate = db.execute(select(SkillVersion).where(SkillVersion.workspace_id == actor.workspace_id, SkillVersion.ref == candidate_ref)).scalar_one_or_none()
-        instructions = candidate.instructions if candidate else None
         logical_id = candidate.skill_id if candidate else None
     if candidate is None:
         raise CampusError(ErrorCode.NOT_FOUND, f"Kandidat {candidate_ref} ist nicht registriert", blocked_action="evaluation.run")
@@ -207,6 +209,16 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     task = services_research.create_task(db, actor=actor, project_id=project.id, task_need=need_doc, budget=budget, parent_task_id=None,
                                          correlation_id=correlation_id)
     need = TaskNeed.model_validate(task.task_need)
+    # Operational admission of the candidate model is enforced exactly as in regular routing; only the missing substantive
+    # qualification is exempt (qualification_mode sandbox_experiment). Disabled, unhealthy, unpriced or data-wise unauthorized deployments
+    # are not evaluated (S3 review).
+    admission = routing.exclusion_reasons(need, cand_dep, policy)
+    if admission:
+        raise CampusError(ErrorCode.NO_ELIGIBLE_MODEL, "Kandidaten-Deployment ist betrieblich nicht zugelassen: " + ", ".join(admission),
+                          blocked_action="evaluation.run", required_resolution="Deployment im Katalog zulassen (aktiv, erreichbar, Preis, Datenfreigabe)",
+                          details={"exclusion_reasons": admission})
+    composition = load_composition(db, actor.workspace_id, need, mandate.id)  # identical build to regular execution
+    instructions = composition.system_rules
     # evaluator: canonically distinct, itself qualified for the evaluator task class, eligible under the hard rules for the review role
     review_need = need.model_copy(update={"role": "reviewer", "task_class": suite.evaluator_task_class,
                                           "substantive_contributor_model_ids": [cand_dep.canonical_model_id or ""]})
@@ -229,7 +241,8 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     run = EvaluationRun(id=new_id("EV"), workspace_id=actor.workspace_id, project_id=project.id, task_id=task.id, candidate_kind=candidate_kind,
                         candidate_ref=candidate_ref, candidate_deployment_id=cand_dep.id, candidate_canonical_model_id=cand_dep.canonical_model_id or "",
                         evaluator_deployment_id=eval_dep.id, evaluator_canonical_model_id=eval_dep.canonical_model_id, suite_id=suite.id,
-                        suite_ref=suite.ref, suite_version=suite.version, state="running", case_results=[], context_manifest=[], created_by=actor.actor_id)
+                        suite_ref=suite.ref, suite_version=suite.version, state="running", case_results=[], context_manifest=[], created_by=actor.actor_id,
+                        composition_key=composition.combination_key)
     db.add(run)
     db.flush()
     record(db, actor=actor, command="evaluation.run", object_type="evaluation_run", object_id=run.id, object_version=None, correlation_id=correlation_id,
@@ -269,7 +282,7 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
             # 1) the candidate works the case
             cand_request = LLMRequest(
                 invocation_id=f"{run.id}:{case['case_id']}:candidate", deployment_id=cand_dep.id,
-                system_rules=(instructions or "Kandidat ohne Anweisungen.") + " Antworte knapp, nenne Unsicherheiten, erfinde keine Belege.",
+                system_rules=instructions + " Antworte knapp, nenne Unsicherheiten, erfinde keine Belege.",
                 content_blocks=[{"type": "text", "text": str(case["input"]), "data_label": "public", "origin": "qualification_case"}],
                 max_output_tokens=need.max_output_tokens, metadata={"routing_decision_id": decision.id, "evaluation_run_id": run.id, "task_class": suite.task_class},
             )
@@ -326,7 +339,8 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
             exc.details["audited"] = True
         raise
     score, passed = aggregate(results, suite.threshold_percent)
-    baseline = _baseline(db, actor.workspace_id, candidate_kind, logical_id, suite.ref, candidate_ref)
+    baseline = _baseline(db, actor.workspace_id, candidate_kind, logical_id, suite.ref, candidate_ref, cases_sha256=suite.cases_sha256)
+    run.baseline_comparable = baseline is not None
     regression = is_regression(score, baseline)
     allowed, note = activation_allowed(passed=passed, regression=regression)
     run.score, run.baseline_score, run.regression = score, baseline, regression
@@ -337,8 +351,10 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
         qual_ref = f"qr:{run.id}"
         db.add(QualificationRecord(id=new_id("Q"), workspace_id=actor.workspace_id, ref=qual_ref, canonical_model_id=cand_dep.canonical_model_id or "",
                                    task_class=suite.task_class, suite_ref=f"{suite.ref}@{suite.version}",
-                                   result_summary=f"{score}% der Fälle bestanden (Schwelle {suite.threshold_percent}%), Kandidat {candidate_ref}",
-                                   passed=True, evaluated_by=eval_dep.canonical_model_id or "", evaluated_by_kind="model", created_by=actor.actor_id))
+                                   result_summary=f"{score}% der Fälle bestanden (Schwelle {suite.threshold_percent}%), Kombination {composition.combination_key}",
+                                   passed=True, evaluated_by=eval_dep.canonical_model_id or "", evaluated_by_kind="model", created_by=actor.actor_id,
+                                   profile_ref=composition.profile_ref if candidate_kind == "agent" else None,
+                                   skill_refs=list(composition.skill_refs) if candidate_kind == "skill" else None))
         if candidate_kind == "agent":
             candidate.operating_status = "active"
             candidate.qualification_status = "task_qualified"
@@ -358,8 +374,9 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     db.flush()
     record(db, actor=actor, command="evaluation.run", object_type="evaluation_run", object_id=run.id, object_version=None, correlation_id=correlation_id,
            project_id=project.id, event_type=("AgentActivated" if candidate_kind == "agent" else "SkillActivated") if allowed else "EvaluationCompleted",
-           payload={"candidate_ref": candidate_ref, "score": score, "passed": passed, "baseline_score": baseline, "regression": regression, "activated": allowed,
-                    "note": note, "qualification_ref": run.qualification_ref, "scope_task_class": suite.task_class})
+           payload={"candidate_ref": candidate_ref, "score": score, "passed": passed, "baseline_score": baseline, "baseline_comparable": baseline is not None,
+                    "regression": regression, "activated": allowed, "note": note, "qualification_ref": run.qualification_ref,
+                    "scope_task_class": suite.task_class, "composition_key": composition.combination_key})
     return run
 
 

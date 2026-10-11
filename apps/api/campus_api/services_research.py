@@ -32,6 +32,7 @@ from campus_contracts.validation import provider_schema, validate_document
 from campus_domain import routing
 from campus_domain.authz import authorize
 from campus_domain.budget import Pricing, estimate_cost
+from campus_domain.composition import HARNESS_PROFILE, Composition, SkillInput, compose
 from campus_domain.errors import CampusError, ErrorCode
 from campus_domain.guards import InvocationContext, RunStartContext, check_invocation, check_run_start
 from campus_domain.money import Money, parse_money
@@ -324,38 +325,94 @@ def _failed_deployments(db: Session, task: Task) -> dict[str, str]:
     return excluded
 
 
-def _qualification_evidence(db: Session, workspace_id: str, catalog: ModelCatalog, task_class: str) -> dict[str, list[dict]]:
-    """Resolved qualification records per deployment, filtered to the task class. Fixture refs without records are reported as such."""
-    refs = {r for dep in catalog.deployments for r in dep.qualification_refs}
-    records = {r.ref: r for r in db.execute(select(QualificationRecord).where(QualificationRecord.workspace_id == workspace_id,
-                                                                              QualificationRecord.ref.in_(refs))).scalars()} if refs else {}
+def _record_applies(rec: QualificationRecord, need: TaskNeed) -> bool:
+    """A record applies to a task when task class, profile (if bound) and skills (if bound) match (chapter 5: per combination)."""
+    if rec.task_class != need.task_class or not rec.passed:
+        return False
+    if rec.profile_ref and rec.profile_ref != need.agent_profile_version_ref:
+        return False
+    if rec.skill_refs and not set(rec.skill_refs) <= set(need.skill_version_refs):
+        return False
+    return True
+
+
+def _qualification_evidence(db: Session, workspace_id: str, catalog: ModelCatalog, need: TaskNeed) -> dict[str, list[dict]]:
+    """Qualification evidence per deployment from the register: every record of the deployment's canonical model plus the catalog's
+    declared refs. Declared refs without a record are reported as unverified (fixture or missing)."""
+    canonicals = {dep.canonical_model_id for dep in catalog.deployments if dep.canonical_model_id}
+    declared = {r for dep in catalog.deployments for r in dep.qualification_refs}
+    rows = db.execute(select(QualificationRecord).where(QualificationRecord.workspace_id == workspace_id,
+                                                        (QualificationRecord.canonical_model_id.in_(canonicals) | QualificationRecord.ref.in_(declared))
+                                                        if declared else QualificationRecord.canonical_model_id.in_(canonicals))).scalars().all()
+    by_ref = {r.ref: r for r in rows}
+    by_canonical: dict[str, list[QualificationRecord]] = {}
+    for r in rows:
+        by_canonical.setdefault(r.canonical_model_id, []).append(r)
     out: dict[str, list[dict]] = {}
     for dep in catalog.deployments:
         items = []
+        seen = set()
+        for rec in by_canonical.get(dep.canonical_model_id or "", []) + [by_ref[r] for r in dep.qualification_refs if r in by_ref]:
+            if rec.ref in seen:
+                continue
+            seen.add(rec.ref)
+            items.append({"ref": rec.ref, "verified": True, "task_class": rec.task_class, "applies_to_task": rec.task_class == need.task_class,
+                          "applies_to_combination": _record_applies(rec, need) and rec.canonical_model_id == dep.canonical_model_id,
+                          "profile_ref": rec.profile_ref, "skill_refs": rec.skill_refs, "suite_ref": rec.suite_ref,
+                          "result_summary": rec.result_summary, "passed": rec.passed, "evaluated_by_kind": rec.evaluated_by_kind,
+                          "canonical_matches": rec.canonical_model_id == dep.canonical_model_id})
         for ref in dep.qualification_refs:
-            rec = records.get(ref)
-            if rec is None:
+            if ref not in by_ref:
                 items.append({"ref": ref, "verified": False, "note": "Referenz ohne registrierten Nachweis (Fixture oder fehlend)"})
-            else:
-                items.append({"ref": ref, "verified": True, "task_class": rec.task_class, "applies_to_task": rec.task_class == task_class,
-                              "suite_ref": rec.suite_ref, "result_summary": rec.result_summary, "passed": rec.passed,
-                              "evaluated_by_kind": rec.evaluated_by_kind, "canonical_matches": rec.canonical_model_id == dep.canonical_model_id})
         out[dep.id] = items
     return out
 
 
+def _qualified_deployments(catalog: ModelCatalog, evidence: dict[str, list[dict]]) -> set[str]:
+    """Deployments qualified for the task's combination according to the register. Fixture catalogs (no competence claimed)
+    additionally accept their declared refs so that mock pipelines keep working; runtime catalogs trust the register only."""
+    qualified = {dep.id for dep in catalog.deployments if any(e.get("applies_to_combination") for e in evidence.get(dep.id, []))}
+    if catalog.purpose != "runtime_snapshot":
+        qualified |= {dep.id for dep in catalog.deployments if dep.qualification_refs}
+    return qualified
+
+
+def _catalog_with_register_evidence(catalog: ModelCatalog, evidence: dict[str, list[dict]]) -> ModelCatalog:
+    """Routing view of the catalog: each deployment's evidence refs are the register records that apply to this task's combination,
+    plus the declared refs. Proposals may cite exactly these; anything else is an invented evidence reference (A02)."""
+    deployments = []
+    for dep in catalog.deployments:
+        refs = [e["ref"] for e in evidence.get(dep.id, []) if e.get("applies_to_combination")]
+        if catalog.purpose != "runtime_snapshot":
+            refs += list(dep.qualification_refs)
+        deployments.append(dep.model_copy(update={"qualification_refs": sorted(set(refs))}))
+    return catalog.model_copy(update={"deployments": deployments})
+
+
 def _task_class_exclusions(catalog: ModelCatalog, evidence: dict[str, list[dict]], need: TaskNeed) -> dict[str, str]:
-    """Runtime catalogs: a qualified task needs a passed record for THIS task class and canonical model (S1.1 finding 3)."""
+    """Runtime catalogs, qualified tasks: the deployment needs a passed record for THIS combination (profile, skills, model, task class)."""
     if catalog.purpose != "runtime_snapshot" or need.qualification_mode != "qualified":
         return {}
     excluded = {}
     for dep in catalog.deployments:
         if not dep.enabled:
             continue
-        if not any(e.get("verified") and e.get("applies_to_task") and e.get("passed") and e.get("canonical_matches")
-                   for e in evidence.get(dep.id, [])):
+        if not any(e.get("applies_to_combination") for e in evidence.get(dep.id, [])):
             excluded[dep.id] = R_QUAL_TASK_CLASS + need.task_class
     return excluded
+
+
+def load_composition(db: Session, workspace_id: str, need: TaskNeed, mandate_ref: str | None) -> Composition:
+    """The one composition used for evaluation and execution alike: registered profile document + registered skills + task."""
+    agent = find_agent(db, workspace_id, need.agent_profile_version_ref)
+    profile_doc = agent.document if agent else HARNESS_PROFILE
+    skills: list[SkillInput] = []
+    for ref in need.skill_version_refs:
+        row = db.execute(select(SkillVersion).where(SkillVersion.workspace_id == workspace_id, SkillVersion.ref == ref)).scalar_one_or_none()
+        if row is not None:
+            skills.append(SkillInput(ref=row.ref, purpose=row.document["purpose"], limitations=tuple(row.document.get("limitations", [])),
+                                     instructions=row.instructions))
+    return compose(profile_doc, skills, task_class=need.task_class, data_labels=list(need.data_labels), mandate_ref=mandate_ref)
 
 
 def _record_rejection(db: Session, actor: Actor, task: Task, proposal: RouteProposal, assessments: list[dict], err: CampusError,
@@ -384,10 +441,10 @@ def _reservation_for(db: Session, decision_id: str, purpose: str) -> Reservation
 
 def _selector_proposal(db: Session, *, actor: Actor, ws: Workspace, mandate: MandateVersion, task: Task, need: TaskNeed, policy: RoutingPolicy,
                        catalog: ModelCatalog, catalog_revision: str, excluded: dict[str, str], evidence: dict[str, list[dict]],
-                       correlation_id: str) -> tuple[RouteProposal, str]:
+                       correlation_id: str, qualified: set[str] | None = None) -> tuple[RouteProposal, str]:
     """Chapter 10: the core picks the selector from the bootstrap pool in fixed order; the selector proposes among eligible
     candidates from permitted summaries, evidence and cost estimates. One selector call per attempt; no recursion."""
-    assessments = routing.assess_candidates(need, catalog, policy, excluded)
+    assessments = routing.assess_candidates(need, catalog, policy, excluded, qualified)
     eligible = [a for a in assessments if a.eligible]
     if not eligible:
         raise CampusError(ErrorCode.NO_ELIGIBLE_MODEL, "Kein Deployment erfüllt die harten Regeln", blocked_action="route.propose",
@@ -444,8 +501,8 @@ def _selector_proposal(db: Session, *, actor: Actor, ws: Workspace, mandate: Man
         candidates.append({"deployment_id": a.deployment_id, "provider_id": dep.provider_id, "canonical_model_id": dep.canonical_model_id,
                            "capabilities": dep.capabilities.model_dump(), "evidence_refs": a.evidence_refs,
                            "qualification_evidence": evidence.get(dep.id, []), "estimated_generation_cost": cost_text})
-    evidence_basis = "verified_for_task" if any(e.get("applies_to_task") and e.get("passed") for c in candidates
-                                                 for e in c["qualification_evidence"]) else "unverified_or_fixture"
+    evidence_basis = "verified_for_combination" if any(e.get("applies_to_combination") for c in candidates
+                                                        for e in c["qualification_evidence"]) else "unverified_or_fixture"
     system_rules = (
         "Du bist der Routing-Agent eines Forschungscampus. Wähle genau einen Kandidaten aus der Liste zulässiger Deployments. "
         "Nenne nur evidence_refs, die beim gewählten Kandidaten aufgeführt sind. Begründe anhand der mitgelieferten "
@@ -518,8 +575,10 @@ def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict |
         raise CampusError(ErrorCode.POLICY_NOT_ACTIVE, f"Aufgabe ist an Policy {need.routing_policy_ref} gebunden; aktiv ist {policy.revision}",
                           blocked_action="route.authorize", policy_version=policy.revision,
                           required_resolution="Aufgabe neu planen (neue Fassung) oder die gebundene Policy aktivieren")
-    evidence = _qualification_evidence(db, actor.workspace_id, catalog, need.task_class)
+    evidence = _qualification_evidence(db, actor.workspace_id, catalog, need)
+    qualified = _qualified_deployments(catalog, evidence)
     excluded = _failed_deployments(db, task) | _task_class_exclusions(catalog, evidence, need)
+    catalog = _catalog_with_register_evidence(catalog, evidence)  # evidence refs a proposal may cite come from the register
     prior = db.execute(select(func.count()).select_from(RoutingDecisionRecord).where(
         RoutingDecisionRecord.task_id == task.id, RoutingDecisionRecord.document["required_review"].astext == "true")).scalar() or 0
     limit = policy.limits.max_route_replans_per_task
@@ -531,16 +590,16 @@ def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict |
     if proposal is None and selection_mode == "llm":
         route_proposal, selector_used = _selector_proposal(db, actor=actor, ws=ws, mandate=mandate, task=task, need=need, policy=policy,
                                                            catalog=catalog, catalog_revision=catalog_row.revision, excluded=excluded,
-                                                           evidence=evidence, correlation_id=correlation_id)
+                                                           evidence=evidence, correlation_id=correlation_id, qualified=qualified)
     elif proposal is None:
-        route_proposal = routing.deterministic_proposal(need, catalog, policy, excluded)
+        route_proposal = routing.deterministic_proposal(need, catalog, policy, excluded, qualified)
         selection_mode = "deterministic_fallback"
     else:
         route_proposal = RouteProposal.model_validate(proposal)
     try:
-        route = routing.validate_proposal(need, route_proposal, catalog, policy, excluded)
+        route = routing.validate_proposal(need, route_proposal, catalog, policy, excluded, qualified)
     except CampusError as err:
-        assessments = err.details.get("assessments") or [a.model_dump() for a in routing.assess_candidates(need, catalog, policy, excluded)]
+        assessments = err.details.get("assessments") or [a.model_dump() for a in routing.assess_candidates(need, catalog, policy, excluded, qualified)]
         _record_rejection(db, actor, task, route_proposal, assessments, err, correlation_id)
         raise
     decision_id = new_id("RD")
@@ -554,8 +613,8 @@ def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict |
                                                    purpose="review", routing_decision_id=decision_id))
     for a in route.assessments:  # the evidence basis is visible in the decision record, not hidden behind a rationale
         ev = evidence.get(a.deployment_id, [])
-        if a.eligible and not any(e.get("applies_to_task") and e.get("passed") for e in ev):
-            a.note = a.note + " Eignung für diese Aufgabenklasse nicht durch registrierten Nachweis belegt."
+        if a.eligible and not any(e.get("applies_to_combination") for e in ev):
+            a.note = a.note + " Eignung für diese Kombination (Profil, Skills, Modell, Aufgabenklasse) nicht durch registrierten Nachweis belegt."
     decision = routing.build_decision(
         route, decision_id=decision_id, catalog_revision=catalog_row.revision, routing_policy_ref=policy.revision,
         selection_mode=selection_mode, selector_model_ref=selector_used, reservation_ref=reservations[0].id,
@@ -642,15 +701,14 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         content_blocks.append({"type": "text", "text": f"[passage_id={p['passage_id']} quelle={p['source_id']} v{p['version']}]\n{p['text']}",
                                "data_label": need.data_labels[0], "origin": "source_passage"})
     structured = deployment.capabilities.structured_output == "supported"
+    composition = load_composition(db, actor.workspace_id, need, need.mandate_version_ref)  # same build as in qualification runs
     request = LLMRequest(
         invocation_id=f"{attempt.id}:gen:1", deployment_id=deployment.id,
-        system_rules=f"Aufgabe {need.task_class}; Datenklassen {','.join(need.data_labels)}; Mandat {need.mandate_version_ref}. "
-                     "Kennzeichne Beobachtung, Berechnung, Ableitung und Hypothese getrennt; erfinde keine Fundstellen; nenne nur "
-                     "passage_ids, die dir übergeben wurden. Antworte ausschliesslich im vorgegebenen JSON-Format.",
+        system_rules=composition.system_rules + " Antworte ausschliesslich im vorgegebenen JSON-Format.",
         content_blocks=content_blocks, output_contract=provider_schema("claim_set") if structured else None,
         max_output_tokens=need.max_output_tokens,
         metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "passage_ids": [p["passage_id"] for p in passages],
-                  "task_class": need.task_class},
+                  "task_class": need.task_class, "composition_key": composition.combination_key},
     )
     try:
         response = _gateway(db, actor.workspace_id).invoke(request, deployment, decision)

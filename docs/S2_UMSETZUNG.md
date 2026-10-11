@@ -68,6 +68,19 @@ innerhalb der Erzeugung bis zu dreimal neu statt blind zu wiederholen.
 **Betriebsbeschränkung DNS-Rebinding:** siehe `docs/BETRIEB.md`, Abschnitt «Betriebsbeschränkung Internetdienst» (Ausgangsfilter im Netz,
 Leistungsebene bleibt `development_mock`, Inhalte sind Daten).
 
+## 2b Was die Vertiefungstests belegen und was nicht
+
+- `test_valid_passage_that_does_not_support_the_claim` belegt den **Mechanismus**: strukturell gültiger Beleg bleibt gültig, ein Einwand des
+  getrennten Prüfers macht Aussagen bestritten und blockiert die Freigabe. Er belegt **nicht**, dass ein echtes Prüfmodell eine sachlich
+  unpassende Belegstelle erkennt; der Mock-Prüfer erhebt Einwände auf Testschalter. Die inhaltliche Belegdeckungsprüfung bleibt ein
+  offener Nachweis (siehe `docs/S3_UMSETZUNG.md`, Abschnitt 2b).
+- `test_provider_failure_inside_generation_is_replanned_by_the_workflow` belegt die Neuplanung nach einem Providerfehler **vor dem Senden**.
+  Ein harter Prozessabbruch zwischen externem Aufruf und Commit ist nicht getestet; dafür steht die Journal-Durabilität (Eintrag `pending`
+  bleibt sichtbar), ein Abgleichlauf fehlt noch.
+- `test_chain_source_claim_a_claim_b` belegt Struktur und Fortpflanzung über Abhängigkeitskanten; die inhaltliche Beurteilung der
+  Ableitung B aus A ist Prüferurteil, hier Mock.
+- `test_retraction_after_dossier_approval_invalidates_release` belegt die Bindung der Freigabe an Fassung **und** Grundlage; der Übertragungskanal fehlt.
+
 ## 3 Nicht behauptet
 
 - Nichts in S0–S2 ist **live nachgewiesen**: alle Modellaufrufe liefen über den Mock-Adapter. Die Live-Tests (`tests/live`) bleiben übersprungen,

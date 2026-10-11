@@ -41,6 +41,8 @@ class MockAdapter:
             reply = json.dumps(self._structured(request), ensure_ascii=False)
         else:
             reply = f"[MOCK {digest}] synthetic response; not a research result"
+            if "FAIL" in request.system_rules:
+                reply += " FAIL"  # a profile whose documents carry the marker produces answers the mock evaluator fails
         return LLMResponse(
             invocation_id=request.invocation_id,
             deployment_id=deployment.id,

@@ -118,19 +118,91 @@ def test_t10_lowering_the_criterion_is_a_new_version_and_keeps_the_failed_run(ca
     assert [(h["suite"], h["state"]) for h in history] == [("suite-source-analysis@1", "failed"), ("suite-source-analysis@2", "passed")]
 
 
-def test_t17_regression_blocks_silent_replacement(campus):
+def test_t17_regression_blocks_silent_replacement_on_comparable_material(campus):
+    """What this proves: on IDENTICAL test material a new version that scores below the active version is not activated.
+    The weaker version carries a marker in its scope that the mock candidate echoes and the mock evaluator fails."""
     api, project_id = campus["api"], campus["project"]["project_id"]
-    _suite(api, threshold=50)
+    _suite(api, threshold=0)  # threshold 0: even the weak version "passes", so only the regression rule can stop it
     v2 = _candidate(api, version="2")
-    assert _evaluate(api, project_id, v2).json()["activated"] is True  # baseline: 100%
-    mixed = [CASES[0], {"case_id": "k2", "input": "FAIL: Rückschritt", "rubric": "r"}]
-    _suite(api, ref="suite-source-analysis", threshold=50, cases=mixed)  # version 2 of the suite, same ref
-    v3 = _candidate(api, version="3")
+    first = _evaluate(api, project_id, v2).json()
+    assert first["activated"] is True and first["score"] == 100 and first["baseline_comparable"] is False  # no active version before
+    v3 = _candidate(api, version="3", scope="Quellenanalyse mit Marker FAIL: schwächere Fassung")
     run = _evaluate(api, project_id, v3).json()
-    assert run["state"] == "passed" and run["score"] == 50 and run["baseline_score"] == 100
+    assert run["state"] == "passed" and run["score"] == 0 and run["baseline_score"] == 100 and run["baseline_comparable"] is True
     assert run["regression"] is True and run["activated"] is False and "Rückschritt" in run["activation_note"]
     agents = {a["ref"]: a for a in api.get("/inventory").json()["agents"]}
     assert agents[v2]["operating_status"] == "active" and agents[v3]["operating_status"] == "planned"  # the active version stays
+
+
+def test_regression_is_not_judged_across_non_comparable_suites(campus):
+    """What this proves: a new suite version with other cases yields no baseline; a lower score there is no regression verdict."""
+    api, project_id = campus["api"], campus["project"]["project_id"]
+    _suite(api, threshold=50)
+    v2 = _candidate(api, version="2")
+    assert _evaluate(api, project_id, v2).json()["activated"] is True
+    harder = [CASES[0], {"case_id": "k2", "input": "FAIL: anderer, härterer Fall", "rubric": "r"}]
+    _suite(api, ref="suite-source-analysis", threshold=50, cases=harder)  # version 2, different material
+    v3 = _candidate(api, version="3")
+    run = _evaluate(api, project_id, v3).json()
+    assert run["score"] == 50 and run["baseline_score"] is None and run["baseline_comparable"] is False and run["regression"] is False
+    assert run["activated"] is True, "passed on new material; nothing comparable to regress against"
+
+
+def test_candidate_model_needs_operational_admission_even_in_evaluation(campus):
+    """What this proves: a disabled or unpriced deployment is not evaluated; only the candidate's missing qualification is exempt."""
+    api, project_id = campus["api"], campus["project"]["project_id"]
+    _suite(api)
+    ref = _candidate(api)
+    r = _evaluate(api, project_id, ref, deployment="fixture-deployment-c")  # disabled in the fixture catalog
+    assert r.status_code == 409 and r.json()["code"] == "NO_ELIGIBLE_MODEL" and "NOT_ENABLED" in r.json()["details"]["exclusion_reasons"]
+    assert "QUALIFICATION_MISSING" not in r.json()["details"]["exclusion_reasons"]
+
+
+def test_qualification_binds_profile_skills_model_and_task_class(campus):
+    """What this proves: the record created by a passed run is bound to the evaluated combination; a runtime catalog admits only that
+    combination for qualified tasks, and the run uses the same composition key as the evaluation."""
+    api, project_id = campus["api"], campus["project"]["project_id"]
+    _suite(api, threshold=50)
+    v2 = _candidate(api, version="2")
+    run = _evaluate(api, project_id, v2).json()
+    assert run["activated"] is True and run["composition_key"] == f"{v2}+-+source_analysis"
+    quals = {q["ref"]: q for q in api.get("/qualifications").json()}
+    assert quals[run["qualification_ref"]]["canonical_model_id"] == "fixture/model-a@1"
+    # runtime catalog: qualified tasks need the combination; the evaluator model B is qualified for "evaluation", not for source analysis
+    from tests.conftest import build_catalog_document
+
+    # the reviewer model needs its own record for reviewing source analyses (human bootstrap, any profile)
+    assert api.post("/qualifications", {"ref": "boot-reviewer-b-source-analysis", "canonical_model_id": "fixture/model-b@1",
+                                        "task_class": "source_analysis", "suite_ref": "bootstrap", "result_summary": "Prüferrolle für Quellenanalysen",
+                                        "passed": True, "evaluated_by": "forschungsleitung", "evaluated_by_kind": "human"}).status_code == 201
+    doc = build_catalog_document() | {"revision": "runtime-combo", "purpose": "runtime_snapshot"}
+    for dep in doc["deployments"]:
+        dep["qualification_refs"] = []  # declarations removed: only the register counts
+    catalog_id = api.post("/model-catalog/drafts", {"document": doc}, method="PUT").json()["catalog_id"]
+    assert api.post(f"/model-catalog/{catalog_id}/activate").status_code == 200
+    ok = _create_task(api, project_id, agent_ref=v2, mode="qualified")
+    proposal = load_example("route_proposal") | {"task_id": ok["task_id"], "evidence_refs": [run["qualification_ref"]], "alternatives": []}
+    r = api.post(f"/tasks/{ok['task_id']}/routing-decisions", {"proposal": proposal, "selection_mode": "fixture"})
+    assert r.status_code == 201, r.text
+    decision = r.json()["decision"]
+    assert decision["selected_deployment_id"] == "fixture-deployment-a"
+    assessed = {a["deployment_id"]: a for a in decision["candidate_assessments"]}
+    assert run["qualification_ref"] in assessed["fixture-deployment-a"]["evidence_refs"], "the register record is the citable evidence"
+    # an invented evidence reference is still rejected (A02)
+    bad = _create_task(api, project_id, agent_ref=v2, mode="qualified")
+    r = api.post(f"/tasks/{bad['task_id']}/routing-decisions", {"proposal": proposal | {"task_id": bad["task_id"], "evidence_refs": ["fixture-eval-a"]},
+                                                              "selection_mode": "fixture"})
+    assert r.status_code == 409 and r.json()["code"] == "PROPOSAL_INVALID"
+    # profile v1 was never evaluated: model A is NOT qualified for the combination (v1, A, source_analysis), although it is for v2;
+    # model B stays eligible through the human record that binds no profile
+    other_profile = _create_task(api, project_id, agent_ref="fixture-ai-researcher@1", mode="qualified")
+    r = api.post(f"/tasks/{other_profile['task_id']}/routing-decisions",
+                 {"proposal": proposal | {"task_id": other_profile["task_id"], "evidence_refs": []}, "selection_mode": "fixture"})
+    assert r.status_code == 409 and r.json()["code"] == "PROPOSAL_INVALID", r.text
+    assessed = {a["deployment_id"]: a for a in r.json()["details"]["assessments"]}
+    assert not assessed["fixture-deployment-a"]["eligible"]
+    assert any(x.startswith("EXCLUDED:QUALIFICATION_NOT_FOR_TASK_CLASS") for x in assessed["fixture-deployment-a"]["exclusion_reasons"])
+    assert assessed["fixture-deployment-b"]["eligible"], "a record without profile binding applies to any profile"
 
 
 def test_t05_protected_test_material_is_hidden_from_producers(client, session_factory, workspace_id, campus):

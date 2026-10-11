@@ -83,6 +83,7 @@ def _run_view(e: EvaluationRun) -> dict:
             "candidate_deployment_id": e.candidate_deployment_id, "candidate_canonical_model_id": e.candidate_canonical_model_id,
             "evaluator_deployment_id": e.evaluator_deployment_id, "evaluator_canonical_model_id": e.evaluator_canonical_model_id,
             "suite": f"{e.suite_ref}@{e.suite_version}", "case_results": e.case_results, "context_manifest": e.context_manifest, "task_id": e.task_id,
+            "composition_key": e.composition_key, "baseline_comparable": e.baseline_comparable,
             "created_at": e.created_at, "ended_at": e.ended_at}
 
 

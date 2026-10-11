@@ -399,6 +399,8 @@ class QualificationRecord(Base):
     passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     evaluated_by: Mapped[str] = mapped_column(String(200), nullable=False)
     evaluated_by_kind: Mapped[str] = mapped_column(String(20), nullable=False)  # model | human
+    profile_ref: Mapped[str | None] = mapped_column(String(120))  # combination binding (S3 review); NULL = any profile
+    skill_refs: Mapped[list | None] = mapped_column(JSONB)  # combination binding; NULL = no skill binding
     created_by: Mapped[str] = mapped_column(String(40), nullable=False)
     created_at: Mapped[datetime] = _ts()
 
@@ -674,6 +676,8 @@ class EvaluationRun(Base):
     activated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     activation_note: Mapped[str | None] = mapped_column(Text)
     qualification_ref: Mapped[str | None] = mapped_column(String(120))
+    composition_key: Mapped[str | None] = mapped_column(String(400))  # profile+skills+task class the candidate was built from
+    baseline_comparable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)  # regression judged only on identical material
     case_results: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     context_manifest: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)  # what each evaluator call received (A11)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)

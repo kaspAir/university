@@ -33,6 +33,22 @@ Registervollständigkeit halten.» Grundlage: Verfassung Art. 19, 25–28, Anhan
 | A10 neue Rechte | Tool-Scopes ausserhalb der Werkzeugkontrolle werden abgewiesen | `::test_a10_*`, Unit `test_a10_tool_scopes` | offline geprüft |
 | A11 Kontextmanifest | Je Prüferaufruf: Hashes von Fall, Rubrik, Ausgabe; keine Selbsteinschätzung | `::test_need_candidate_*` | offline geprüft |
 
+## 2a Befunde der S3-Prüfung (gegen Commit cf4eef4)
+
+| Befund | Umsetzung | Was der Test tatsächlich belegt | Stufe |
+| --- | --- | --- | --- |
+| Qualifikationsläufe prüften die betriebliche Zulassung des Kandidatenmodells nicht | Vor dem Lauf laufen dieselben harten Regeln wie im Routing (aktiv, erreichbar, Datenklassen, Fähigkeiten, Kontext, Preis, Endpunkt) im Modus `sandbox_experiment`; einzig die fehlende fachliche Qualifikation ist ausgenommen | `test_s3_factory.py::test_candidate_model_needs_operational_admission_even_in_evaluation`: ein deaktiviertes Deployment wird mit `NOT_ENABLED` abgewiesen, `QUALIFICATION_MISSING` erscheint nicht als Grund. Belegt die Regelanwendung, nicht die Richtigkeit der Katalogdaten | offline geprüft |
+| Evaluation und Ausführung bauten den Kandidaten unterschiedlich auf | Eine Komposition (`campus_domain/composition.py`) aus registriertem Profil, registrierten Skills mit Anweisungen und Aufgabe; `start_run` und der Qualifikationslauf rufen dieselbe Funktion; der Lauf speichert den `composition_key` | `::test_qualification_binds_profile_skills_model_and_task_class`: Kompositionsschlüssel des Laufs = Profil + Skills + Aufgabenklasse. Belegt, dass dieselbe Funktion mit denselben Dokumenten gerufen wird; nicht, dass echte Modelle sich bei gleicher Komposition gleich verhalten | offline geprüft |
+| Einsatzqualifikation nicht an die Kombination gebunden | `QualificationRecord` trägt `profile_ref` und `skill_refs`; der Fabriklauf schreibt die geprüfte Kombination; Routing wertet den Nachweis nur für passende Kombination und Aufgabenklasse (`applies_to_combination`); Betriebskataloge vertrauen allein dem Register, zitierbare Nachweise kommen aus dem Register | derselbe Test: Profil v2 mit Modell A zugelassen, Profil v1 mit Modell A ausgeschlossen, ein profil-ungebundener menschlicher Nachweis gilt für jedes Profil; erfundener Nachweis weiterhin `PROPOSAL_INVALID` | offline geprüft |
+| Regressionsvergleich über nicht vergleichbare Prüfsätze | Baseline nur bei gleichem Prüfsatz-Ref **und** identischem `cases_sha256`; sonst keine Baseline (`baseline_comparable=false`) | `::test_t17_regression_blocks_silent_replacement_on_comparable_material` (gleiches Material, schwächere Fassung mit Marker wird nicht aktiviert) und `::test_regression_is_not_judged_across_non_comparable_suites` (neue Fallversion, kein Rückschritt-Urteil). Der Mock-Prüfer erkennt die Schwäche nur über einen Marker; belegt ist der Vergleichsmechanismus, nicht die Urteilsqualität | offline geprüft |
+
+## 2b Weiterhin offene Nachweise
+
+| Nachweis | Was bisher belegt ist | Was offen ist |
+| --- | --- | --- |
+| Belegdeckungsprüfung (trägt die Passage die Aussage inhaltlich?) | Strukturell: jeder Beleg ist eine existierende, auffindbare Passage; Inhaltlich: ein getrennter Prüfer kann Einwände erheben, die Aussagen werden bestritten (`test_s2_depth.py::test_valid_passage_that_does_not_support_the_claim`). Der Mock-Prüfer erhebt Einwände nur auf Testschalter | Ob ein echtes Prüfmodell eine sachlich unpassende Belegstelle zuverlässig erkennt, ist nicht gezeigt; eine eigene Deckungsprüfung je Evidenzlink (Passage ↔ Aussage) als Prüfaufgabe mit Prüfsatz fehlt |
+| Wiederaufnahme nach abruptem Prozessabbruch | Ein Worker wird nach abgeschlossener Aktivität geordnet beendet, neue Worker setzen fort, nichts doppelt (`test_s2_workflow.py::test_interruption_after_generation_loses_no_registered_result`); Aktivitäten liefern bei Wiederholung das registrierte Objekt (`::test_activities_are_idempotent_on_replay`) | Ein harter Abbruch **innerhalb** einer Aktivität (Prozess stirbt zwischen externem Aufruf und Commit) ist nicht getestet; hier greift die Journal-Durabilität (Aufruf vor dem Aufruf committet, Ausgang `pending` bleibt sichtbar), ein Abgleich-Lauf für hängende `pending`-Einträge fehlt |
+
 ## 3 Begründete Grenzen
 
 - **Prüferwahl** (offener Punkt aus S1.1, Befund 3): Der Prüfer wird aus den qualifizierten, kanonisch getrennten Deployments nach Anbieterpräferenz und Kennung gewählt. Eine fachlich begründete Wahl des «besten» Prüfers bräuchte vergleichende Nachweise für die Prüfaufgabe selbst; dieser Vergleich ist mit den Prüfsätzen jetzt möglich, aber nicht automatisiert.
@@ -42,5 +58,6 @@ Registervollständigkeit halten.» Grundlage: Verfassung Art. 19, 25–28, Anhan
 
 ## 4 Nachweise dieses Stands
 
-Testlauf: 186 Tests grün, 5 Live-Tests übersprungen; Linter ohne Befund; Migrationskette 0001–0005; CI-Konstellation mit PostgreSQL- und
-Temporal-Sidecar.
+Testlauf: 189 Tests grün, 5 Live-Tests übersprungen; Linter ohne Befund; Migrationskette 0001–0006 (0006 bindet Nachweise an die
+Kombination); CI-Konstellation mit PostgreSQL- und Temporal-Sidecar. Geprüft gegen Commit cf4eef4; Arbeitsstand ohne lokale Abweichungen
+vor den Änderungen dieses Abschnitts.

@@ -214,6 +214,8 @@ class QualificationBody(BaseModel):
     passed: bool
     evaluated_by: str = Field(min_length=1)
     evaluated_by_kind: str = Field(description="model | human")
+    profile_ref: str | None = None
+    skill_refs: list[str] | None = None
 
 
 @router.post("/qualifications", status_code=201)
@@ -221,7 +223,8 @@ def record_qualification(body: QualificationBody, request: Request, actor: Actor
     def handler(correlation: str):
         row = svc.record_qualification(db, actor=actor, ref=body.ref, canonical_model_id=body.canonical_model_id, task_class=body.task_class,
                                        suite_ref=body.suite_ref, result_summary=body.result_summary, passed=body.passed,
-                                       evaluated_by=body.evaluated_by, evaluated_by_kind=body.evaluated_by_kind, correlation_id=correlation)
+                                       evaluated_by=body.evaluated_by, evaluated_by_kind=body.evaluated_by_kind, correlation_id=correlation,
+                                       profile_ref=body.profile_ref, skill_refs=body.skill_refs)
         return 201, {"qualification_id": row.id, "ref": row.ref, "canonical_model_id": row.canonical_model_id, "task_class": row.task_class,
                      "passed": row.passed, "evaluated_by": row.evaluated_by, "evaluated_by_kind": row.evaluated_by_kind}
     return execute_command(db, actor, request, command="qualification.record", payload=body, handler=handler, object_type="qualification")

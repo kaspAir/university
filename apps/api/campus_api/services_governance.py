@@ -348,7 +348,7 @@ def approve_processing_profile(db: Session, *, actor: Actor, ref: str, provider_
 
 def record_qualification(db: Session, *, actor: Actor, ref: str, canonical_model_id: str, task_class: str, suite_ref: str,
                          result_summary: str, passed: bool, evaluated_by: str, evaluated_by_kind: str,
-                         correlation_id: str) -> QualificationRecord:
+                         correlation_id: str, profile_ref: str | None = None, skill_refs: list[str] | None = None) -> QualificationRecord:
     """Qualification evidence for a (model, task class) combination. A model never certifies itself (T12, Art. 19)."""
     authorize("qualification.record", actor.roles)
     if evaluated_by_kind not in {"model", "human"}:
@@ -363,9 +363,11 @@ def record_qualification(db: Session, *, actor: Actor, ref: str, canonical_model
         raise CampusError(ErrorCode.VERSION_CONFLICT, "Nachweis existiert bereits")
     row = QualificationRecord(id=new_id("Q"), workspace_id=actor.workspace_id, ref=ref, canonical_model_id=canonical_model_id,
                               task_class=task_class, suite_ref=suite_ref, result_summary=result_summary, passed=passed,
-                              evaluated_by=evaluated_by, evaluated_by_kind=evaluated_by_kind, created_by=actor.actor_id)
+                              evaluated_by=evaluated_by, evaluated_by_kind=evaluated_by_kind, profile_ref=profile_ref, skill_refs=skill_refs,
+                              created_by=actor.actor_id)
     db.add(row)
     db.flush()
     record(db, actor=actor, command="qualification.record", object_type="qualification", object_id=ref, object_version=None,
-           correlation_id=correlation_id, payload={"canonical_model_id": canonical_model_id, "task_class": task_class, "passed": passed})
+           correlation_id=correlation_id, payload={"canonical_model_id": canonical_model_id, "task_class": task_class, "passed": passed,
+                                                   "profile_ref": profile_ref, "skill_refs": skill_refs})
     return row
