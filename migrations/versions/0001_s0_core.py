@@ -24,10 +24,23 @@ depends_on = None
 
 APP_ROLE = os.environ.get("CAMPUS_APP_DB_ROLE", "campus_app")
 
+# The S0 baseline is pinned to these tables. Later tables live in later revisions, even though the ORM
+# metadata already knows them (otherwise the baseline would silently grow with the code).
+S0_TABLES = (
+    "workspaces", "users", "sessions", "grants", "institutes", "mandate_versions", "human_decisions",
+    "policy_versions", "model_catalog_revisions", "pricing_versions", "budget_accounts", "reservations",
+    "cost_entries", "projects", "tasks", "agent_profile_versions", "skill_versions", "route_proposals",
+    "routing_decisions", "run_attempts", "llm_invocations", "audit_events", "outbox_events", "idempotency_keys",
+)
+
+
+def _s0_tables():
+    return [t for t in Base.metadata.sorted_tables if t.name in S0_TABLES]
+
 
 def upgrade() -> None:
     bind = op.get_bind()
-    Base.metadata.create_all(bind=bind)
+    Base.metadata.create_all(bind=bind, tables=_s0_tables())
     op.execute(
         """
         CREATE OR REPLACE FUNCTION audit_events_immutable() RETURNS trigger AS $$
@@ -57,4 +70,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS audit_events_no_update_delete ON audit_events")
     op.execute("DROP FUNCTION IF EXISTS audit_events_immutable()")
-    Base.metadata.drop_all(bind=op.get_bind())
+    Base.metadata.drop_all(bind=op.get_bind(), tables=_s0_tables())

@@ -1,0 +1,13 @@
+{
+  "verdict": "objections",
+  "checked_aspects": ["Belegbindung der Hauptaussage", "Geltungsbereich", "Trennung Beobachtung/Vermutung"],
+  "findings": [
+    {
+      "subject": "Hauptaussage ohne Fundstelle",
+      "argument": "Die Aussage nennt keine Quelle und keine eigene Untersuchung; sie ist als Hypothese zu führen, nicht als gestützt.",
+      "severity": "major",
+      "scope": "Abschnitt 2 des Artefakts"
+    }
+  ],
+  "uncertainties": ["Synthetische Prüfung an einem Fixture-Artefakt; keine fachliche Kompetenz nachgewiesen."]
+}

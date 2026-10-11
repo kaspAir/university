@@ -22,6 +22,10 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "catalog.import": frozenset({Role.OPERATOR}),
     "catalog.activate": frozenset({Role.OPERATOR}),
     "pricing.set": frozenset({Role.OPERATOR}),
+    "processing_profile.approve": frozenset({Role.RESEARCH_DIRECTOR}),  # data authorization is a protection standard (Art. 11)
+    "qualification.record": frozenset({Role.RESEARCH_DIRECTOR, Role.REVIEWER}),
+    "catalog.discover": frozenset({Role.OPERATOR}),
+    "review.start": frozenset({Role.REVIEWER, Role.RESEARCH_DIRECTOR}),
     "budget.create_child": frozenset({Role.RESEARCH_DIRECTOR}),
     "project.create": frozenset({Role.RESEARCH_DIRECTOR}),
     "task.create": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),

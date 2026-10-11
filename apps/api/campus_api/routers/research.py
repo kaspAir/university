@@ -176,6 +176,33 @@ def start_run(body: RunBody, request: Request, actor: Actor = Depends(current_ac
                            object_id=body.task_id)
 
 
+@router.post("/runs/{run_id}/review", status_code=201)
+def start_review(run_id: str, request: Request, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)):
+    """Distinct-model first review of the frozen artifact of a finished run (Art. 17, 27)."""
+    def handler(correlation: str):
+        return 201, svc.start_review(db, actor=actor, run_id=run_id, correlation_id=correlation)
+    return execute_command(db, actor, request, command="review.start", payload={"run_id": run_id}, handler=handler,
+                           object_type="run_attempt", object_id=run_id)
+
+
+@router.get("/tasks/{task_id}/reviews")
+def task_reviews(task_id: str, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)) -> list[dict]:
+    from campus_infra.models import FindingRecord, ReviewReportRecord
+
+    reports = db.execute(select(ReviewReportRecord).where(ReviewReportRecord.task_id == task_id,
+                                                          ReviewReportRecord.workspace_id == actor.workspace_id)
+                         .order_by(ReviewReportRecord.created_at)).scalars().all()
+    out = []
+    for r in reports:
+        findings = db.execute(select(FindingRecord).where(FindingRecord.review_report_id == r.id)).scalars().all()
+        out.append({"review_report_id": r.id, "run_attempt_id": r.run_attempt_id, "verdict": r.verdict, "artifact_sha256": r.artifact_sha256,
+                    "reviewer_canonical_model_id": r.reviewer_canonical_model_id, "reviewer_effective_model_id": r.reviewer_effective_model_id,
+                    "producer_canonical_model_id": r.producer_canonical_model_id, "document": r.document,
+                    "findings": [{"id": f.id, "subject": f.subject, "argument": f.argument, "severity": f.severity, "scope": f.scope,
+                                  "status": f.status} for f in findings], "created_at": r.created_at})
+    return out
+
+
 class ReasonBody(BaseModel):
     reason: str
 

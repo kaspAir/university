@@ -31,6 +31,12 @@ class ErrorCode(StrEnum):
     OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
     INVALID_TRANSITION = "INVALID_TRANSITION"
     WORKSPACE_STOPPED = "WORKSPACE_STOPPED"
+    PROVIDER_REJECTED = "PROVIDER_REJECTED"  # 4xx from the provider: configuration or contract problem, not retryable
+    PROTECTED_REFUSAL = "PROTECTED_REFUSAL"  # safety refusal; never routed around (policy fallback.protected_refusal)
+    CAPABILITY_UNSUPPORTED = "CAPABILITY_UNSUPPORTED"  # adapter cannot honour a required feature; no silent downgrade (A08)
+    SECRET_UNAVAILABLE = "SECRET_UNAVAILABLE"
+    REPLAN_LIMIT_REACHED = "REPLAN_LIMIT_REACHED"
+    REVIEW_INDEPENDENCE_VIOLATED = "REVIEW_INDEPENDENCE_VIOLATED"
 
 
 _HTTP_STATUS: dict[ErrorCode, int] = {

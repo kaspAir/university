@@ -358,3 +358,91 @@ class IdempotencyKey(Base):
     response_status: Mapped[int] = mapped_column(Integer, nullable=False)
     response_body: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = _ts()
+
+
+# ---------------------------------------------------------------- S1 additions
+
+
+class ProcessingProfile(Base):
+    """Data-processing authorization for a provider access (chapter 8, 12): region and permitted data classes."""
+
+    __tablename__ = "processing_profiles"
+    __table_args__ = (UniqueConstraint("workspace_id", "ref"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    provider_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    region: Mapped[str] = mapped_column(String(80), nullable=False)
+    allowed_data_labels: Mapped[list] = mapped_column(JSONB, nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    approved_by: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class QualificationRecord(Base):
+    """Evidence that a canonical model is fit for a task class (chapter 8). Never produced by the candidate itself."""
+
+    __tablename__ = "qualification_records"
+    __table_args__ = (UniqueConstraint("workspace_id", "ref"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    canonical_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    task_class: Mapped[str] = mapped_column(String(120), nullable=False)
+    suite_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    result_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    evaluated_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    evaluated_by_kind: Mapped[str] = mapped_column(String(20), nullable=False)  # model | human
+    created_by: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class ArtifactVersion(Base):
+    """Frozen output of a run; the review object is bound to its hash (Art. 17, I05)."""
+
+    __tablename__ = "artifact_versions"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    run_attempt_id: Mapped[str] = mapped_column(ForeignKey("run_attempts.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    content: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    producer_canonical_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class ReviewReportRecord(Base):
+    __tablename__ = "review_reports"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    run_attempt_id: Mapped[str] = mapped_column(ForeignKey("run_attempts.id"), nullable=False)
+    artifact_version_id: Mapped[str] = mapped_column(ForeignKey("artifact_versions.id"), nullable=False)
+    artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    reviewer_deployment_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    reviewer_canonical_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    reviewer_effective_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    producer_canonical_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    invocation_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    verdict: Mapped[str] = mapped_column(String(20), nullable=False)
+    document: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class FindingRecord(Base):
+    """An objection (Art. 18): subject, argument, scope, responsible handling and status. Never deleted."""
+
+    __tablename__ = "findings"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    review_report_id: Mapped[str] = mapped_column(ForeignKey("review_reports.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    subject: Mapped[str] = mapped_column(Text, nullable=False)
+    argument: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")  # open | fixed | rejected | limited | escalated
+    created_at: Mapped[datetime] = _ts()

@@ -37,7 +37,8 @@ def test_a02_proposal_for_disabled_model_is_rejected_but_assessments_are_kept(ta
 
 
 def test_a03_alias_of_the_producer_is_not_review_diversity(task, catalog, policy, proposal_a) -> None:
-    only_a_and_alias = catalog.model_copy(update={"deployments": [d for d in catalog.deployments if d.id != "fixture-deployment-b"]})
+    only_a_and_alias = catalog.model_copy(update={"deployments": [
+        d for d in catalog.deployments if d.id not in {"fixture-deployment-b", "fixture-deployment-e-flaky"}]})
     proposal = proposal_a.model_copy(update={"alternatives": []})
     with pytest.raises(CampusError) as excinfo:
         routing.validate_proposal(task, proposal, only_a_and_alias, policy)

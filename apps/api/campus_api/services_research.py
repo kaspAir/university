@@ -1,49 +1,45 @@
-"""Projects, tasks, registry, route authorization and runs (chapters 6, 7, 9–11, 16)."""
+"""Projects, tasks, registry, route authorization (selector + core), runs and distinct-model review.
+
+Chapters 6, 7, 9–11, 16, 17–18 of the architecture. S1: real adapters behind the gateway, LLM selector with core
+validation, replanning after provider failure, review by a canonically different model.
+"""
 from __future__ import annotations
+
+import hashlib
+import json
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from campus_contracts.models import (
-    AgentProfile,
-    ModelCatalog,
-    RouteProposal,
-    RoutingDecision,
-    SkillManifest,
-    TaskNeed,
-)
+from campus_contracts.models import AgentProfile, ModelCatalog, ReviewReport, RouteProposal, RoutingDecision, SkillManifest, TaskNeed
 from campus_contracts.policy import RoutingPolicy
-from campus_contracts.validation import validate_document
+from campus_contracts.validation import provider_schema, validate_document
 from campus_domain import routing
 from campus_domain.authz import authorize
 from campus_domain.budget import Pricing, estimate_cost
 from campus_domain.errors import CampusError, ErrorCode
 from campus_domain.guards import RunStartContext, check_run_start
 from campus_domain.money import Money, parse_money
-from campus_domain.statuses import (
-    ActivationState,
-    MandateState,
-    OperatingStatus,
-    QualificationStatus,
-    RunEndReason,
-    RunState,
-)
+from campus_domain.statuses import ActivationState, MandateState, OperatingStatus, QualificationStatus, RunEndReason, RunState
+from campus_gateway.adapters import build_adapters
 from campus_gateway.gateway import Gateway
-from campus_gateway.mock_adapter import MockAdapter
-from campus_gateway.port import LLMRequest
+from campus_gateway.port import LLMRequest, LLMResponse
 from campus_infra import budget_service
 from campus_infra.audit import Actor, record
 from campus_infra.ids import new_id, utcnow
 from campus_infra.journal import DbInvocationJournal
 from campus_infra.models import (
     AgentProfileVersion,
+    ArtifactVersion,
     BudgetAccount,
+    FindingRecord,
     Institute,
     MandateVersion,
     OutboxEvent,
     PricingVersion,
     Project,
     Reservation,
+    ReviewReportRecord,
     RouteProposalRecord,
     RoutingDecisionRecord,
     RunAttempt,
@@ -54,12 +50,18 @@ from campus_infra.models import (
 
 from .services_governance import active_catalog, active_policy
 
+SELECTOR_TASK_CLASS = "route_selection"
+
 
 def _own(db: Session, model, object_id: str, actor: Actor, what: str):
     row = db.get(model, object_id)
     if row is None or row.workspace_id != actor.workspace_id:
         raise CampusError(ErrorCode.NOT_FOUND, f"{what} nicht gefunden")
     return row
+
+
+def _gateway(db: Session, workspace_id: str) -> Gateway:
+    return Gateway(build_adapters(), DbInvocationJournal(db, workspace_id))
 
 
 # ---------------------------------------------------------------- projects & tasks
@@ -99,8 +101,8 @@ def create_task(db: Session, *, actor: Actor, project_id: str, task_need: dict, 
         depth_limit = RoutingPolicy.model_validate(policy.document).limits.max_delegation_depth if policy else None
         depth = _task_depth(db, parent) + 1
         if depth_limit is not None and depth > depth_limit:
-            raise CampusError(ErrorCode.LIMITS_NOT_SET if depth_limit is None else ErrorCode.FORBIDDEN,
-                              f"Delegationstiefe {depth} überschreitet das Limit {depth_limit}", blocked_action="task.create")
+            raise CampusError(ErrorCode.FORBIDDEN, f"Delegationstiefe {depth} überschreitet das Limit {depth_limit}",
+                              blocked_action="task.create", required_resolution="Aufgabe flacher planen (Art. 10)")
     if budget is not None:
         parent_account = db.get(BudgetAccount, parent_account_id)
         account = budget_service.create_child(db, parent_id=parent_account_id, name=f"Task {task_id}",
@@ -236,41 +238,153 @@ def _loaded_policy_and_catalog(db: Session, workspace_id: str) -> tuple[RoutingP
             ModelCatalog.model_validate(catalog_row.document), catalog_row.revision)
 
 
+def _failed_deployments(db: Session, task: Task) -> dict[str, str]:
+    """Deployments that failed technically in earlier attempts of this task are excluded from the replan (chapter 10)."""
+    excluded: dict[str, str] = {}
+    rows = db.execute(
+        select(RunAttempt, RoutingDecisionRecord)
+        .join(RoutingDecisionRecord, RoutingDecisionRecord.id == RunAttempt.routing_decision_id)
+        .where(RunAttempt.task_id == task.id, RunAttempt.end_reason == RunEndReason.PROVIDER_ERROR.value)
+    ).all()
+    for attempt, decision in rows:
+        excluded[decision.document["selected_deployment_id"]] = f"FAILED_IN_ATTEMPT:{attempt.id}"
+    return excluded
+
+
+def _record_rejection(db: Session, actor: Actor, task: Task, proposal: RouteProposal, assessments: list[dict], err: CampusError,
+                      correlation_id: str) -> None:
+    db.add(RouteProposalRecord(id=new_id("RP"), workspace_id=actor.workspace_id, task_id=task.id,
+                               proposal=proposal.model_dump(), assessments=assessments, outcome="rejected", error_code=err.code.value))
+    record(db, actor=actor, command="route.authorize", object_type="task", object_id=task.id, object_version=str(task.version),
+           correlation_id=correlation_id, policy_decision=f"blocked:{err.code.value}", project_id=task.project_id,
+           payload={"selected_deployment_id": proposal.selected_deployment_id, "message": err.message})
+    db.commit()
+    err.details["audited"] = True
+
+
+def _selector_proposal(db: Session, *, actor: Actor, task: Task, need: TaskNeed, policy: RoutingPolicy, catalog: ModelCatalog,
+                       catalog_revision: str, excluded: dict[str, str], correlation_id: str) -> tuple[RouteProposal, str, Reservation]:
+    """Chapter 10: the core picks the selector from the bootstrap pool in fixed order; the selector proposes among
+    eligible candidates with permitted summaries only. One selector call per attempt; no recursion."""
+    assessments = routing.assess_candidates(need, catalog, policy, excluded)
+    eligible = [a for a in assessments if a.eligible]
+    if not eligible:
+        raise CampusError(ErrorCode.NO_ELIGIBLE_MODEL, "Kein Deployment erfüllt die harten Regeln", blocked_action="route.propose",
+                          policy_version=policy.revision, details={"assessments": [a.model_dump() for a in assessments]})
+    selector_need = need.model_copy(update={
+        "role": "selector", "task_class": SELECTOR_TASK_CLASS, "data_labels": ["public"],
+        "required_features": ["text_input", "structured_output"], "context_tokens_estimate": 3000, "max_output_tokens": 800,
+        "required_tool_scopes": [], "substantive_contributor_model_ids": [],
+    })
+    selector: object | None = None
+    for dep_id in policy.bootstrap_selector_deployment_ids:  # fixed, logged order
+        dep = catalog.deployment(dep_id)
+        if dep is not None and not routing.exclusion_reasons(selector_need, dep, policy, excluded):
+            selector = dep
+            break
+    if selector is None:
+        raise CampusError(ErrorCode.NO_ELIGIBLE_SELECTOR,
+                          "Kein Selector aus dem Bootstrap-Pool ist zulässig; die Aufgabe wartet (Kap. 10)",
+                          blocked_action="route.propose", policy_version=policy.revision,
+                          required_resolution="bootstrap_selector_deployment_ids mit qualifizierten, zugelassenen Deployments belegen")
+    cost = estimate_cost(_pricing(db, actor.workspace_id, selector.pricing_ref), selector_need.context_tokens_estimate,
+                         selector_need.max_output_tokens)
+    reservation = budget_service.reserve(db, account_id=task.budget_account_id, amount=cost, task_id=task.id, purpose="selector")
+    selector_route = routing.ValidatedRoute(
+        selected=selector, reviewer=None, assessments=routing.assess_candidates(selector_need, catalog, policy, excluded),
+        proposal=RouteProposal(task_id=task.id, selected_deployment_id=selector.id,
+                               rationale="Kontrollkern: erster zulässiger Selector in der festen Reihenfolge des Bootstrap-Pools.",
+                               evidence_refs=list(selector.qualification_refs), alternatives=[], uncertainties=[]),
+        required_review=False,
+    )
+    selector_decision = routing.build_decision(
+        selector_route, decision_id=new_id("RD"), catalog_revision=catalog_revision, routing_policy_ref=policy.revision,
+        selection_mode="deterministic_fallback", selector_model_ref=None, reservation_ref=reservation.id,
+        pricing_snapshot_ref=selector.pricing_ref or "-", created_at=utcnow().isoformat())
+    db.add(RoutingDecisionRecord(id=selector_decision.id, workspace_id=actor.workspace_id, task_id=task.id,
+                                 document=selector_decision.model_dump(), state=selector_decision.state))
+    db.flush()
+    candidates = [{"deployment_id": a.deployment_id, "evidence_refs": a.evidence_refs,
+                   "provider_id": catalog.deployment(a.deployment_id).provider_id,
+                   "canonical_model_id": catalog.deployment(a.deployment_id).canonical_model_id,
+                   "capabilities": catalog.deployment(a.deployment_id).capabilities.model_dump()} for a in eligible]
+    system_rules = (
+        "Du bist der Routing-Agent eines Forschungscampus. Wähle genau einen Kandidaten aus der Liste zulässiger "
+        "Deployments. Nenne nur evidence_refs, die beim gewählten Kandidaten aufgeführt sind. Begründe knapp und sachlich, "
+        "nenne Alternativen mit Grund und offene Unsicherheiten. Du entscheidest nichts über die Zulässigkeit; "
+        "diese prüft der Kontrollkern. Antworte ausschliesslich im vorgegebenen JSON-Format."
+    )
+    payload = {
+        "task": {"task_id": task.id, "task_class": need.task_class, "role": need.role, "language": need.language,
+                 "data_labels": need.data_labels, "required_features": need.required_features,
+                 "context_tokens_estimate": need.context_tokens_estimate, "max_output_tokens": need.max_output_tokens,
+                 "qualification_mode": need.qualification_mode},
+        "eligible_candidates": candidates,
+        "selection_criteria": policy.selection_criteria,
+    }
+    request = LLMRequest(
+        invocation_id=f"{task.id}:selector:{selector_decision.id}", deployment_id=selector.id, system_rules=system_rules,
+        content_blocks=[{"type": "text", "text": json.dumps(payload, ensure_ascii=False, indent=1), "data_label": "public",
+                         "origin": "core_summary"}],
+        output_contract=provider_schema("route_proposal"), max_output_tokens=selector_need.max_output_tokens,
+        metadata={"task_id": task.id, "candidates": candidates, "routing_decision_id": selector_decision.id},
+    )
+    response = _gateway(db, actor.workspace_id).invoke(request, selector, selector_decision)
+    _settle_from_usage(db, reservation, _pricing(db, actor.workspace_id, selector.pricing_ref), response)
+    try:
+        proposal = RouteProposal.model_validate(json.loads(response.text()))
+    except Exception as exc:  # the model's answer violates the contract: recorded as PROPOSAL_INVALID, no second call
+        raise CampusError(ErrorCode.PROPOSAL_INVALID, f"Selector-Antwort verletzt den Vertrag route_proposal: {type(exc).__name__}",
+                          blocked_action="route.propose", policy_version=policy.revision,
+                          details={"assessments": [a.model_dump() for a in assessments]}) from exc
+    return proposal, selector.canonical_model_id or selector.id, reservation
+
+
+def _settle_from_usage(db: Session, reservation: Reservation, pricing: Pricing | None, response: LLMResponse) -> Money | None:
+    actual: Money | None = None
+    if response.usage.known and pricing is not None:
+        actual = estimate_cost(pricing, response.usage.input_tokens or 0, response.usage.output_tokens or 0)
+    budget_service.settle(db, reservation_id=reservation.id, actual=actual)
+    return actual
+
+
 def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict | None, selection_mode: str,
                     selector_model_ref: str | None, correlation_id: str) -> RoutingDecisionRecord:
-    """Chapter 9 steps 5–7: validate, reserve (generation + review), register the decision atomically.
-    A rejected proposal is still recorded with its note (A02)."""
+    """Chapter 9 steps 1–7: propose (fixture, deterministic rule or LLM selector), validate, reserve generation and review,
+    register the decision atomically. A rejected proposal is still recorded with its note (A02). After a provider failure
+    the replan excludes the failed deployment and counts against max_route_replans_per_task."""
     authorize("route.authorize", actor.roles)
     task = _own(db, Task, task_id, actor, "Aufgabe")
     need = TaskNeed.model_validate(task.task_need)
     policy, policy_id, catalog, catalog_revision = _loaded_policy_and_catalog(db, actor.workspace_id)
     if need.routing_policy_ref != policy.revision:
-        raise CampusError(
-            ErrorCode.POLICY_NOT_ACTIVE,
-            f"Aufgabe ist an Policy {need.routing_policy_ref} gebunden; aktiv ist {policy.revision}",
-            blocked_action="route.authorize",
-            required_resolution="Aufgabe neu planen (neue Fassung) oder die gebundene Policy aktivieren",
-            policy_version=policy.revision,
-        )
-    if proposal is None:
-        route_proposal = routing.deterministic_proposal(need, catalog, policy)
+        raise CampusError(ErrorCode.POLICY_NOT_ACTIVE, f"Aufgabe ist an Policy {need.routing_policy_ref} gebunden; aktiv ist {policy.revision}",
+                          blocked_action="route.authorize", policy_version=policy.revision,
+                          required_resolution="Aufgabe neu planen (neue Fassung) oder die gebundene Policy aktivieren")
+    excluded = _failed_deployments(db, task)
+    prior = db.execute(select(func.count()).select_from(RoutingDecisionRecord).where(
+        RoutingDecisionRecord.task_id == task.id, RoutingDecisionRecord.document["required_review"].astext == "true")).scalar() or 0
+    limit = policy.limits.max_route_replans_per_task
+    if excluded and limit is not None and prior > limit:
+        raise CampusError(ErrorCode.REPLAN_LIMIT_REACHED, f"Neuplanungen erschöpft ({prior - 1} von {limit}); Aufgabe wartet auf Entscheid",
+                          blocked_action="route.authorize", policy_version=policy.revision,
+                          required_resolution="Menschlicher Entscheid: Aufgabe anpassen, Katalog erweitern oder abbrechen")
+    selector_used: str | None = selector_model_ref
+    if proposal is None and selection_mode == "llm":
+        route_proposal, selector_used, _ = _selector_proposal(db, actor=actor, task=task, need=need, policy=policy, catalog=catalog,
+                                                             catalog_revision=catalog_revision, excluded=excluded,
+                                                             correlation_id=correlation_id)
+    elif proposal is None:
+        route_proposal = routing.deterministic_proposal(need, catalog, policy, excluded)
         selection_mode = "deterministic_fallback"
     else:
         route_proposal = RouteProposal.model_validate(proposal)
     try:
-        route = routing.validate_proposal(need, route_proposal, catalog, policy)
+        route = routing.validate_proposal(need, route_proposal, catalog, policy, excluded)
     except CampusError as err:
-        assessments = err.details.get("assessments") or [a.model_dump() for a in routing.assess_candidates(need, catalog, policy)]
-        db.add(RouteProposalRecord(id=new_id("RP"), workspace_id=actor.workspace_id, task_id=task.id,
-                                   proposal=route_proposal.model_dump(), assessments=assessments, outcome="rejected",
-                                   error_code=err.code.value))
-        record(db, actor=actor, command="route.authorize", object_type="task", object_id=task.id, object_version=str(task.version),
-               correlation_id=correlation_id, policy_decision=f"blocked:{err.code.value}", project_id=task.project_id,
-               payload={"selected_deployment_id": route_proposal.selected_deployment_id, "message": err.message})
-        db.commit()
-        err.details["audited"] = True
+        assessments = err.details.get("assessments") or [a.model_dump() for a in routing.assess_candidates(need, catalog, policy, excluded)]
+        _record_rejection(db, actor, task, route_proposal, assessments, err, correlation_id)
         raise
-    # Budget: generation and (when required) review are reserved before the call (chapter 16, A04).
     generation_cost = estimate_cost(_pricing(db, actor.workspace_id, route.selected.pricing_ref),
                                     need.context_tokens_estimate, need.max_output_tokens)
     reservations: list[Reservation] = [budget_service.reserve(db, account_id=task.budget_account_id, amount=generation_cost,
@@ -282,7 +396,7 @@ def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict |
                                                    task_id=task.id, purpose="review"))
     decision = routing.build_decision(
         route, decision_id=new_id("RD"), catalog_revision=catalog_revision, routing_policy_ref=policy.revision,
-        selection_mode=selection_mode, selector_model_ref=selector_model_ref, reservation_ref=reservations[0].id,
+        selection_mode=selection_mode, selector_model_ref=selector_used, reservation_ref=reservations[0].id,
         pricing_snapshot_ref=route.selected.pricing_ref or "-", created_at=utcnow().isoformat(),
     )
     row = RoutingDecisionRecord(id=decision.id, workspace_id=actor.workspace_id, task_id=task.id,
@@ -296,14 +410,22 @@ def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict |
            correlation_id=correlation_id, project_id=task.project_id, event_type="RoutingDecided",
            payload={"task_id": task.id, "selected_deployment_id": decision.selected_deployment_id,
                     "review_deployment_id": decision.review_deployment_id, "reservation_ids": [r.id for r in reservations],
-                    "policy_id": policy_id})
+                    "policy_id": policy_id, "selection_mode": selection_mode, "excluded": excluded})
     return row
 
 
 # ---------------------------------------------------------------- runs
 
+def _end_reason_for(err: CampusError) -> RunEndReason:
+    return {
+        ErrorCode.OUTCOME_UNKNOWN: RunEndReason.OUTCOME_UNKNOWN,
+        ErrorCode.PROTECTED_REFUSAL: RunEndReason.PROTECTED_REFUSAL,
+    }.get(err.code, RunEndReason.PROVIDER_ERROR)
+
+
 def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: str, correlation_id: str) -> dict:
-    """Guard, then execute one synchronous mock generation call and settle its cost. S0 only; S2 moves this to workflows."""
+    """Guard, execute one generation call through the authorized route, freeze the output as an artifact, settle cost.
+    S1 is synchronous; S2 moves this into durable workflows."""
     authorize("run.start", actor.roles)
     task = _own(db, Task, task_id, actor, "Aufgabe")
     need = TaskNeed.model_validate(task.task_need)
@@ -318,6 +440,9 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     if decision_row is not None and (decision_row.task_id != task.id or decision_row.workspace_id != actor.workspace_id):
         raise CampusError(ErrorCode.ROUTE_NOT_AUTHORIZED, "Routingentscheid gehört nicht zu dieser Aufgabe", blocked_action="run.start")
     decision = RoutingDecision.model_validate(decision_row.document) if decision_row else None
+    if decision is not None and db.execute(select(RunAttempt).where(RunAttempt.routing_decision_id == decision.id)).first():
+        raise CampusError(ErrorCode.ROUTE_NOT_AUTHORIZED, "Dieser Routingentscheid wurde bereits ausgeführt; neue Route nötig",
+                          blocked_action="run.start", required_resolution="route.authorize erneut aufrufen")
     reservations = db.execute(select(Reservation).where(Reservation.task_id == task.id, Reservation.state == "reserved")).scalars().all()
     ctx = RunStartContext(
         workspace_stopped=bool(ws.stopped),
@@ -332,7 +457,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         task_qualification_mode=need.qualification_mode,
         route_state=decision.state if decision else None,
         reservation_present=any(r.purpose == "generation" for r in reservations),
-        review_required=bool(decision.required_review) if decision else routing.review_required(need, policy) if policy else True,
+        review_required=bool(decision.required_review) if decision else True,
         review_reservation_present=any(r.purpose == "review" for r in reservations),
     )
     check_run_start(ctx)
@@ -346,39 +471,45 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     record(db, actor=actor, command="run.start", object_type="run_attempt", object_id=attempt.id, object_version=str(attempt_no),
            correlation_id=correlation_id, project_id=task.project_id,
            payload={"task_id": task.id, "routing_decision_id": decision.id, "agent_profile_version_id": agent.id})
-    # S0: synchronous mock call through the gateway with the authorized route.
     catalog = ModelCatalog.model_validate(catalog_row.document)
     deployment = catalog.deployment(decision.selected_deployment_id)
-    gateway = Gateway({"mock": MockAdapter()}, DbInvocationJournal(db, actor.workspace_id))
     request = LLMRequest(
         invocation_id=f"{attempt.id}:gen:1", deployment_id=deployment.id,
-        system_rules=f"Aufgabe {need.task_class}; Datenklassen {','.join(need.data_labels)}; Mandat {need.mandate_version_ref}",
-        content_blocks=[{"type": "text", "text": f"Synthetic S0 task payload for {task.id}", "data_label": need.data_labels[0],
-                         "origin": "fixture"}],
+        system_rules=f"Aufgabe {need.task_class}; Datenklassen {','.join(need.data_labels)}; Mandat {need.mandate_version_ref}. "
+                     "Kennzeichne Beobachtung, Berechnung, Ableitung und Hypothese getrennt; erfinde keine Fundstellen.",
+        content_blocks=[{"type": "text", "text": f"Aufgabe {task.id} ({need.task_class}); Inhalt folgt in S2 aus dem Forschungsdossier.",
+                         "data_label": need.data_labels[0], "origin": "task"}],
         max_output_tokens=need.max_output_tokens,
         metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id},
     )
     generation = next(r for r in reservations if r.purpose == "generation")
     try:
-        response = gateway.invoke(request, deployment, decision)
+        response = _gateway(db, actor.workspace_id).invoke(request, deployment, decision)
     except CampusError as err:
-        attempt.state = RunState.OUTCOME_UNKNOWN.value if err.code == ErrorCode.OUTCOME_UNKNOWN else RunState.FAILED.value
-        attempt.end_reason = (RunEndReason.OUTCOME_UNKNOWN if err.code == ErrorCode.OUTCOME_UNKNOWN else RunEndReason.PROVIDER_ERROR).value
+        reason = _end_reason_for(err)
+        attempt.state = RunState.OUTCOME_UNKNOWN.value if reason == RunEndReason.OUTCOME_UNKNOWN else RunState.FAILED.value
+        attempt.end_reason = reason.value
         attempt.ended_at = utcnow()
-        if err.code == ErrorCode.OUTCOME_UNKNOWN:
+        task.state = "waiting"
+        if reason == RunEndReason.OUTCOME_UNKNOWN:
             budget_service.settle(db, reservation_id=generation.id, actual=None)  # stays bound as open_unknown
+        else:
+            generation.state = "released"  # nothing was consumed before send
         db.flush()
         record(db, actor=actor, command="run.end", object_type="run_attempt", object_id=attempt.id, object_version=str(attempt_no),
                correlation_id=correlation_id, project_id=task.project_id, event_type="RunEnded",
-               payload={"end_reason": attempt.end_reason, "error_code": err.code.value})
+               payload={"end_reason": attempt.end_reason, "error_code": err.code.value, "retryable": err.retryable})
         db.commit()
         err.details["audited"] = True
         raise
-    pricing = _pricing(db, actor.workspace_id, deployment.pricing_ref)
-    actual: Money | None = None
-    if response.usage.known and pricing is not None:
-        actual = estimate_cost(pricing, response.usage.input_tokens or 0, response.usage.output_tokens or 0)
-    budget_service.settle(db, reservation_id=generation.id, actual=actual)
+    actual = _settle_from_usage(db, generation, _pricing(db, actor.workspace_id, deployment.pricing_ref), response)
+    synthetic = any(b.get("synthetic") for b in response.blocks)
+    content = {"blocks": response.blocks, "stop_reason": response.stop_reason, "effective_model_id": response.effective_model_id}
+    digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    artifact = ArtifactVersion(id=new_id("A"), workspace_id=actor.workspace_id, task_id=task.id, run_attempt_id=attempt.id,
+                               kind="generation_output", content=content, sha256=digest,
+                               producer_canonical_model_id=decision.selected_canonical_model_id, synthetic=synthetic)
+    db.add(artifact)
     attempt.state = RunState.FINISHED.value
     attempt.end_reason = RunEndReason.RESULT.value
     attempt.ended_at = utcnow()
@@ -386,15 +517,114 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     db.flush()
     record(db, actor=actor, command="run.end", object_type="run_attempt", object_id=attempt.id, object_version=str(attempt_no),
            correlation_id=correlation_id, project_id=task.project_id, event_type="RunEnded",
-           payload={"end_reason": attempt.end_reason, "invocation_id": response.invocation_id,
-                    "effective_model_id": response.effective_model_id, "cost_state": "settled" if actual else "open"})
+           payload={"end_reason": attempt.end_reason, "invocation_id": response.invocation_id, "artifact_version_id": artifact.id,
+                    "artifact_sha256": digest, "effective_model_id": response.effective_model_id,
+                    "cost_state": "settled" if actual else "open", "synthetic": synthetic})
     return {
         "run_attempt_id": attempt.id, "attempt_no": attempt_no, "state": attempt.state, "end_reason": attempt.end_reason,
         "invocation_id": response.invocation_id, "effective_model_id": response.effective_model_id,
         "usage": {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens},
         "cost": actual.format() if actual else "offen", "review_required": decision.required_review,
-        "review_deployment_id": decision.review_deployment_id, "synthetic": True,
+        "review_deployment_id": decision.review_deployment_id, "artifact_version_id": artifact.id, "artifact_sha256": digest,
+        "synthetic": synthetic,
     }
+
+
+def start_review(db: Session, *, actor: Actor, run_id: str, correlation_id: str) -> dict:
+    """Distinct-model first review of the frozen artifact (Art. 17, 27; chapter 11). The reviewer receives the artifact and the
+    task context, never the producer's self-assessment. Findings are recorded as objections; the verdict stays a model opinion."""
+    authorize("review.start", actor.roles)
+    attempt = _own(db, RunAttempt, run_id, actor, "Lauf")
+    if attempt.state != RunState.FINISHED.value:
+        raise CampusError(ErrorCode.INVALID_TRANSITION, f"Lauf ist {attempt.state}; geprüft wird nur ein beendeter Lauf", blocked_action="review.start")
+    task = db.get(Task, attempt.task_id)
+    need = TaskNeed.model_validate(task.task_need)
+    artifact = db.execute(select(ArtifactVersion).where(ArtifactVersion.run_attempt_id == attempt.id)).scalar_one_or_none()
+    if artifact is None:
+        raise CampusError(ErrorCode.NOT_FOUND, "Kein eingefrorenes Artefakt zu diesem Lauf")
+    if db.execute(select(ReviewReportRecord).where(ReviewReportRecord.run_attempt_id == attempt.id)).first():
+        raise CampusError(ErrorCode.INVALID_TRANSITION, "Dieser Lauf wurde bereits geprüft; eine neue Prüfung verlangt ein neues Artefakt (I05)")
+    decision_row = db.get(RoutingDecisionRecord, attempt.routing_decision_id)
+    decision = RoutingDecision.model_validate(decision_row.document)
+    if not decision.required_review or not decision.review_deployment_id:
+        raise CampusError(ErrorCode.REVIEW_INDEPENDENCE_VIOLATED, "Für diese Route ist kein Prüfmodell autorisiert", blocked_action="review.start")
+    catalog_row = active_catalog(db, actor.workspace_id)
+    catalog = ModelCatalog.model_validate(catalog_row.document)
+    reviewer = catalog.deployment(decision.review_deployment_id)
+    if reviewer is None or reviewer.canonical_model_id in {None, artifact.producer_canonical_model_id} | set(need.substantive_contributor_model_ids):
+        raise CampusError(ErrorCode.REVIEW_INDEPENDENCE_VIOLATED,
+                          "Prüfmodell ist kanonisch nicht vom Erzeuger getrennt oder nicht mehr im Katalog; Prüfung bleibt offen (I04)",
+                          blocked_action="review.start", required_resolution="Route neu bestimmen (anderes Prüfmodell)")
+    reservation = db.execute(select(Reservation).where(Reservation.task_id == task.id, Reservation.purpose == "review",
+                                                       Reservation.state == "reserved")).scalars().first()
+    if reservation is None:
+        raise CampusError(ErrorCode.BUDGET_EXHAUSTED, "Keine gebundene Prüfreserve für diese Aufgabe", blocked_action="review.start")
+    artifact_text = "\n".join(str(b.get("text", "")) for b in artifact.content["blocks"] if b.get("type") == "text")
+    system_rules = (
+        "Du bist ein unabhängiger Erstprüfer in einem Forschungscampus. Du erhältst ein eingefrorenes Artefakt und den "
+        "Aufgabenkontext, keine Bewertung des Erzeugers. Prüfe Belegbindung, Geltungsbereich, Trennung von Beobachtung und "
+        "Vermutung und offene Unsicherheiten. Nenne Einwände mit Gegenstand, Argument, Tragweite und Bezug. Ein Einwand ist "
+        "kein Beweis; fehlende Prüfbarkeit meldest du als cannot_assess. Antworte ausschliesslich im vorgegebenen JSON-Format."
+    )
+    request = LLMRequest(
+        invocation_id=f"{attempt.id}:review:1", deployment_id=reviewer.id, system_rules=system_rules,
+        content_blocks=[
+            {"type": "text", "text": f"Aufgabe: {need.task_class}; Sprache {need.language}; Datenklassen {need.data_labels}",
+             "data_label": need.data_labels[0], "origin": "task"},
+            {"type": "text", "text": f"Artefakt (sha256 {artifact.sha256}):\n{artifact_text}", "data_label": need.data_labels[0],
+             "origin": "artifact"},
+        ],
+        output_contract=provider_schema("review_report"), max_output_tokens=need.max_output_tokens,
+        metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "artifact_sha256": artifact.sha256,
+                  "task_class": need.task_class},
+    )
+    try:
+        response = _gateway(db, actor.workspace_id).invoke(request, reviewer, decision)
+    except CampusError as err:
+        if err.code == ErrorCode.OUTCOME_UNKNOWN:
+            budget_service.settle(db, reservation_id=reservation.id, actual=None)
+        record(db, actor=actor, command="review.start", object_type="run_attempt", object_id=attempt.id, object_version=None,
+               correlation_id=correlation_id, policy_decision=f"blocked:{err.code.value}", project_id=task.project_id,
+               payload={"message": err.message, "reviewer_deployment_id": reviewer.id})
+        db.commit()
+        err.details["audited"] = True
+        raise
+    _settle_from_usage(db, reservation, _pricing(db, actor.workspace_id, reviewer.pricing_ref), response)
+    try:
+        report = ReviewReport.model_validate(json.loads(response.text()))
+    except Exception as exc:
+        raise CampusError(ErrorCode.PROPOSAL_INVALID, f"Prüfbericht verletzt den Vertrag review_report: {type(exc).__name__}",
+                          blocked_action="review.start") from exc
+    row = ReviewReportRecord(
+        id=new_id("RR"), workspace_id=actor.workspace_id, task_id=task.id, run_attempt_id=attempt.id, artifact_version_id=artifact.id,
+        artifact_sha256=artifact.sha256, reviewer_deployment_id=reviewer.id, reviewer_canonical_model_id=reviewer.canonical_model_id or "",
+        reviewer_effective_model_id=response.effective_model_id, producer_canonical_model_id=artifact.producer_canonical_model_id,
+        invocation_id=response.invocation_id, verdict=report.verdict, document=report.model_dump(),
+    )
+    db.add(row)
+    db.flush()
+    findings = []
+    for f in report.findings:
+        finding = FindingRecord(id=new_id("F"), workspace_id=actor.workspace_id, review_report_id=row.id, task_id=task.id,
+                                subject=f.subject, argument=f.argument, severity=f.severity, scope=f.scope, status="open")
+        db.add(finding)
+        findings.append(finding)
+    task.state = "finished" if report.verdict == "no_objection" else "waiting"  # objections stay open; majority never closes them (T14)
+    db.flush()
+    record(db, actor=actor, command="review.start", object_type="review_report", object_id=row.id, object_version=None,
+           correlation_id=correlation_id, project_id=task.project_id, event_type="ReviewCompleted",
+           payload={"run_attempt_id": attempt.id, "verdict": report.verdict, "finding_ids": [f.id for f in findings],
+                    "reviewer_canonical_model_id": row.reviewer_canonical_model_id, "producer_canonical_model_id": row.producer_canonical_model_id,
+                    "artifact_sha256": artifact.sha256})
+    for finding in findings:
+        record(db, actor=actor, command="finding.raise", object_type="finding", object_id=finding.id, object_version=None,
+               correlation_id=correlation_id, project_id=task.project_id, event_type="ClaimContested",
+               payload={"severity": finding.severity, "review_report_id": row.id})
+    return {"review_report_id": row.id, "verdict": report.verdict, "findings": [{"id": f.id, "subject": f.subject, "severity": f.severity}
+                                                                               for f in findings],
+            "reviewer_canonical_model_id": row.reviewer_canonical_model_id, "reviewer_effective_model_id": row.reviewer_effective_model_id,
+            "producer_canonical_model_id": row.producer_canonical_model_id, "artifact_sha256": artifact.sha256, "task_state": task.state,
+            "synthetic": any(b.get("synthetic") for b in response.blocks)}
 
 
 def cancel_run(db: Session, *, actor: Actor, run_id: str, reason: str, correlation_id: str) -> RunAttempt:
@@ -448,3 +678,18 @@ def project_events(db: Session, *, actor: Actor, project_id: str, after_id: int)
                       .order_by(OutboxEvent.id).limit(200)).scalars().all()
     return [{"id": e.id, "event_type": e.event_type, "object_type": e.object_type, "object_id": e.object_id,
              "object_version": e.object_version, "created_at": e.created_at, "payload": e.payload} for e in rows]
+
+
+def discover_models(*, actor: Actor, adapter_name: str, secret_ref: str, api_base: str | None) -> list[str]:
+    """Provider discovery for the cockpit. Lists native ids only; enabling, data authorization and qualification stay separate."""
+    authorize("catalog.discover", actor.roles)
+    adapters = build_adapters()
+    adapter = adapters.get(adapter_name)
+    if adapter is None or not hasattr(adapter, "list_models"):
+        raise CampusError(ErrorCode.ADAPTER_NOT_APPROVED, f"Adapter {adapter_name} ist nicht freigegeben oder kennt keine Discovery",
+                          blocked_action="catalog.discover")
+    try:
+        return adapter.list_models(secret_ref, api_base)
+    except Exception as exc:  # typed provider failures surface as campus errors; nothing is cached or enabled
+        raise CampusError(ErrorCode.PROVIDER_REJECTED, f"Discovery fehlgeschlagen: {type(exc).__name__}: {exc}",
+                          blocked_action="catalog.discover") from exc

@@ -80,11 +80,30 @@ export CAMPUS_TEST_DATABASE_URL="postgresql+psycopg://campus_owner:campus_owner_
 Integrationstests setzen die Testdatenbank per `alembic downgrade base` / `upgrade head` zurück. Ohne erreichbares
 PostgreSQL werden sie **übersprungen und als übersprungen gemeldet**, nie durch SQLite ersetzt.
 
-## Was S0 nicht kann
+## Provider-Adapter (S1)
 
-- Keine echten Modellaufrufe: nur der Mock-Adapter ist freigegeben; jeder andere Adapter liefert `ADAPTER_NOT_APPROVED`.
-- Kein Temporal, keine Quellenaufnahme, keine Aussagen, keine Sandbox. Der Lauf in S0 ist ein synchroner Mock-Aufruf
-  mit Journal und Kostenabrechnung; er zeigt den Kontrollweg, nicht Forschung.
+Standardmässig ist nur `mock` freigegeben. Echte Adapter werden per Liste freigegeben und holen ihre Schlüssel aus
+Umgebungsvariablen des Gateway-Prozesses:
+
+```bash
+export CAMPUS_APPROVED_ADAPTERS=mock,anthropic,openai
+export CAMPUS_SECRET_PROVIDERS_ANTHROPIC='...'     # secret://providers/anthropic
+export CAMPUS_SECRET_PROVIDERS_OPENAI='...'        # secret://providers/openai
+.venv/Scripts/python -m campus_api.cli probe-provider --adapter anthropic --secret-ref secret://providers/anthropic
+```
+
+Discovery listet native Modellkennungen; sie ist weder Datenfreigabe noch Qualifikation. Der Weg bis zum aktivierten
+Katalog mit zwei echten Anbietern steht in `docs/S1_UMSETZUNG.md`, Abschnitt 3. Live-Tests gegen echte Anbieter laufen
+nur mit `CAMPUS_LIVE_TESTS=1` und kosten Geld.
+
+Ein beendeter Lauf wird mit `POST /api/v1/runs/{id}/review` durch das in der Route autorisierte, kanonisch andere
+Modell geprüft. Einwände bleiben als `findings` offen, bis Menschen sie bearbeiten.
+
+## Was noch fehlt
+
+- Zwei echte freigegebene Modellzugänge (Betriebsentscheid, S1-Tor); bis dahin Leistungsebene `development_mock`.
+- Kein Temporal, keine Quellenaufnahme, keine Aussagen, keine Sandbox. Lauf und Prüfung sind synchrone Aufrufe
+  mit Journal und Kostenabrechnung; sie zeigen den Kontrollweg, nicht Forschung (S2 ff.).
 - Keine Weboberfläche. Kein Deploy (Zielhost offen).
 
 ## Abhängigkeiten

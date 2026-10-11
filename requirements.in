@@ -9,3 +9,5 @@ argon2-cffi
 PyYAML
 jsonschema
 python-multipart
+anthropic
+openai

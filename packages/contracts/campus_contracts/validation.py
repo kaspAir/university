@@ -15,7 +15,16 @@ SCHEMA_NAMES = (
     "routing_decision",
     "agent_profile",
     "skill_manifest",
+    "review_report",  # repository addition (S1)
 )
+
+
+def provider_schema(name: str) -> dict:
+    """Schema as handed to a provider's structured-output feature: without `$schema`, `$id`, `title`, `description`."""
+    schema = dict(load_schema(name))
+    for key in ("$schema", "$id", "title", "description"):
+        schema.pop(key, None)
+    return schema
 
 
 @cache

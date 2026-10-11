@@ -50,7 +50,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--workspace", required=True)
     p.add_argument("path")
 
+    p = sub.add_parser("probe-provider", help="Discovery: native Modellkennungen eines freigegebenen Adapters auflisten (keine Freigabe)")
+    p.add_argument("--adapter", required=True, help="Adaptername; muss in CAMPUS_APPROVED_ADAPTERS stehen")
+    p.add_argument("--secret-ref", required=True, help="secret://providers/<name> -> Umgebungsvariable CAMPUS_SECRET_PROVIDERS_<NAME>")
+    p.add_argument("--api-base", default=None)
+
     args = parser.parse_args(argv)
+    if args.cmd == "probe-provider":
+        from . import services_research
+
+        ids = services_research.discover_models(actor=_system_actor("-"), adapter_name=args.adapter, secret_ref=args.secret_ref,
+                                                api_base=args.api_base)
+        print(json.dumps({"adapter": args.adapter, "model_ids": ids,
+                          "note": "Discovery ist weder Datenfreigabe noch Qualifikation (Architektur Kap. 8)."}, indent=1, ensure_ascii=False))
+        return 0
     settings = get_settings()
     factory = make_session_factory(make_engine(settings.database_url))
     correlation = f"cli-{uuid.uuid4().hex}"

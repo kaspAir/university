@@ -84,13 +84,19 @@ def govern(api: Api, boot: dict) -> dict:
     assert r.status_code == 201, r.text
     policy_id = r.json()["policy_id"]
     assert api.post(f"/policies/{policy_id}/activate").status_code == 200
-    r = api.post("/model-catalog/drafts", {"document": boot["catalog_doc"]}, method="PUT")
-    assert r.status_code == 201, r.text
-    catalog_id = r.json()["catalog_id"]
-    assert api.post(f"/model-catalog/{catalog_id}/activate").status_code == 200
+    # S1 activation gate: price binding and data-processing authorization come BEFORE the catalog goes live.
     r = api.post("/pricing", {"pricing_ref": "test-price-1", "currency": "CHF", "input_per_million": "10.00",
                               "output_per_million": "50.00", "source_note": "Synthetischer Testpreis, 11.10.2026"})
     assert r.status_code == 201, r.text
+    for provider in sorted({d["provider_id"] for d in boot["catalog_doc"]["deployments"]}):
+        r = api.post("/processing-profiles", {"ref": f"profile-{provider}", "provider_id": provider, "region": "test",
+                                              "allowed_data_labels": ["public"], "note": "Synthetische Datenfreigabe für Fixture-Provider"})
+        assert r.status_code == 201, r.text
+    r = api.post("/model-catalog/drafts", {"document": boot["catalog_doc"]}, method="PUT")
+    assert r.status_code == 201, r.text
+    catalog_id = r.json()["catalog_id"]
+    r = api.post(f"/model-catalog/{catalog_id}/activate")
+    assert r.status_code == 200, r.text
     doc = MANDATE_DOC | {"responsible_user_id": boot["director_id"]}
     r = api.post("/mandates", {"document": doc, "budget": "1000.00", "currency": "CHF"})
     assert r.status_code == 201, r.text
@@ -139,6 +145,8 @@ def _create_task(api: Api, project_id: str, budget: str | None = "1.00", **need_
 
 def _authorize(api: Api, task_id: str, selected: str = "fixture-deployment-a"):
     proposal = load_example("route_proposal") | {"task_id": task_id, "selected_deployment_id": selected}
+    if selected != "fixture-deployment-a":
+        proposal["evidence_refs"] = []  # the fixture's evidence belongs to A; other candidates claim none
     return api.post(f"/tasks/{task_id}/routing-decisions", {"proposal": proposal, "selection_mode": "fixture"})
 
 
@@ -317,10 +325,16 @@ def test_a14_unknown_price_blocks_the_route(client, session_factory, workspace_i
     boot = bootstrap(session_factory, workspace_id, catalog_doc=doc)
     api = Api(client)
     api.login(workspace_id, "leitung")
-    state = govern(api, boot)
-    task = _create_task(api, state["project"]["project_id"])
-    r = _authorize(api, task["task_id"])
-    assert r.status_code == 409 and r.json()["code"] == "PRICING_UNKNOWN"
+    # Since S1 the price binding is checked at activation: the catalog never goes live with an unbound price.
+    with pytest.raises(AssertionError, match="Preisbindung"):
+        govern(api, boot)
+    # The route-time guard remains as a second net for prices that disappear after activation.
+    from campus_domain.budget import estimate_cost
+    from campus_domain.errors import ErrorCode as EC
+
+    with pytest.raises(CampusError) as excinfo:
+        estimate_cost(None, 10, 10)
+    assert excinfo.value.code == EC.PRICING_UNKNOWN
 
 
 # ------------------------------------------------------------------ runs
@@ -369,9 +383,9 @@ def test_mock_run_settles_cost_and_leaves_evidence(campus, session_factory):
         assert gen.state == "settled" and gen.settled_minor is not None
         review = db.execute(select(Reservation).where(Reservation.task_id == task["task_id"], Reservation.purpose == "review")).scalar_one()
         assert review.state == "reserved"  # review has not happened: reserve stays bound, status stays open
-    # replaying the same run command with a new key is a new attempt, not a hidden retry of the first
+    # an executed routing decision is spent: a second run needs a new route (no hidden retry of the first)
     r2 = api.post("/runs", {"task_id": task["task_id"], "routing_decision_id": decision_id})
-    assert r2.status_code == 409 and r2.json()["code"] == "BUDGET_EXHAUSTED"  # generation reserve is consumed
+    assert r2.status_code == 409 and r2.json()["code"] == "ROUTE_NOT_AUTHORIZED"
 
 
 def test_stop_blocks_runs_and_resume_needs_a_reason(campus):

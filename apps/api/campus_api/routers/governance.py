@@ -166,6 +166,78 @@ def catalog_status(actor: Actor = Depends(current_actor), db: Session = Depends(
             "revisions": [{"catalog_id": r.id, "revision": r.revision, "state": r.state} for r in rows], "deployments": deployments}
 
 
+@router.get("/model-catalog/discovery")
+def discover_models(adapter: str, secret_ref: str, api_base: str | None = None, actor: Actor = Depends(current_actor)) -> dict:
+    """Native model ids a provider reports. Discovery is neither data authorization nor qualification (chapter 8)."""
+    from .. import services_research
+
+    ids = services_research.discover_models(actor=actor, adapter_name=adapter, secret_ref=secret_ref, api_base=api_base)
+    return {"adapter": adapter, "model_ids": ids, "note": "Discovery ist weder Datenfreigabe noch Qualifikation."}
+
+
+class ProcessingProfileBody(BaseModel):
+    ref: str = Field(min_length=1)
+    provider_id: str = Field(min_length=1)
+    region: str = Field(min_length=1)
+    allowed_data_labels: list[str] = Field(min_length=1)
+    note: str = Field(min_length=1)
+
+
+@router.post("/processing-profiles", status_code=201)
+def approve_processing_profile(body: ProcessingProfileBody, request: Request, actor: Actor = Depends(current_actor),
+                               db: Session = Depends(get_db)):
+    def handler(correlation: str):
+        row = svc.approve_processing_profile(db, actor=actor, ref=body.ref, provider_id=body.provider_id, region=body.region,
+                                             allowed_data_labels=body.allowed_data_labels, note=body.note, correlation_id=correlation)
+        return 201, {"processing_profile_id": row.id, "ref": row.ref, "provider_id": row.provider_id, "region": row.region,
+                     "allowed_data_labels": row.allowed_data_labels, "approved_by": row.approved_by}
+    return execute_command(db, actor, request, command="processing_profile.approve", payload=body, handler=handler,
+                           object_type="processing_profile")
+
+
+@router.get("/processing-profiles")
+def list_processing_profiles(actor: Actor = Depends(current_actor), db: Session = Depends(get_db)) -> list[dict]:
+    from campus_infra.models import ProcessingProfile
+
+    rows = db.execute(select(ProcessingProfile).where(ProcessingProfile.workspace_id == actor.workspace_id)
+                      .order_by(ProcessingProfile.created_at)).scalars().all()
+    return [{"ref": r.ref, "provider_id": r.provider_id, "region": r.region, "allowed_data_labels": r.allowed_data_labels,
+             "note": r.note, "approved_by": r.approved_by, "created_at": r.created_at} for r in rows]
+
+
+class QualificationBody(BaseModel):
+    ref: str = Field(min_length=1)
+    canonical_model_id: str = Field(min_length=1)
+    task_class: str = Field(min_length=1)
+    suite_ref: str = Field(min_length=1)
+    result_summary: str = Field(min_length=1)
+    passed: bool
+    evaluated_by: str = Field(min_length=1)
+    evaluated_by_kind: str = Field(description="model | human")
+
+
+@router.post("/qualifications", status_code=201)
+def record_qualification(body: QualificationBody, request: Request, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)):
+    def handler(correlation: str):
+        row = svc.record_qualification(db, actor=actor, ref=body.ref, canonical_model_id=body.canonical_model_id, task_class=body.task_class,
+                                       suite_ref=body.suite_ref, result_summary=body.result_summary, passed=body.passed,
+                                       evaluated_by=body.evaluated_by, evaluated_by_kind=body.evaluated_by_kind, correlation_id=correlation)
+        return 201, {"qualification_id": row.id, "ref": row.ref, "canonical_model_id": row.canonical_model_id, "task_class": row.task_class,
+                     "passed": row.passed, "evaluated_by": row.evaluated_by, "evaluated_by_kind": row.evaluated_by_kind}
+    return execute_command(db, actor, request, command="qualification.record", payload=body, handler=handler, object_type="qualification")
+
+
+@router.get("/qualifications")
+def list_qualifications(actor: Actor = Depends(current_actor), db: Session = Depends(get_db)) -> list[dict]:
+    from campus_infra.models import QualificationRecord
+
+    rows = db.execute(select(QualificationRecord).where(QualificationRecord.workspace_id == actor.workspace_id)
+                      .order_by(QualificationRecord.created_at)).scalars().all()
+    return [{"ref": r.ref, "canonical_model_id": r.canonical_model_id, "task_class": r.task_class, "suite_ref": r.suite_ref,
+             "result_summary": r.result_summary, "passed": r.passed, "evaluated_by": r.evaluated_by,
+             "evaluated_by_kind": r.evaluated_by_kind, "created_at": r.created_at} for r in rows]
+
+
 class PricingBody(BaseModel):
     pricing_ref: str
     currency: str = Field(min_length=3, max_length=3)

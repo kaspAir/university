@@ -167,6 +167,22 @@ class SkillManifest(_Strict):
     package_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class Finding(_Strict):
+    subject: str = Field(min_length=1)
+    argument: str = Field(min_length=1)
+    severity: Literal["minor", "major", "blocking"]
+    scope: str = Field(min_length=1)
+
+
+class ReviewReport(_Strict):
+    """Repository addition (S1): output contract of the distinct-model first review. A model opinion, labelled as such."""
+
+    verdict: Literal["no_objection", "objections", "cannot_assess"]
+    checked_aspects: list[str] = Field(min_length=1)
+    findings: list[Finding]
+    uncertainties: list[str]
+
+
 MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "model_catalog": ModelCatalog,
     "task_need": TaskNeed,
@@ -174,4 +190,5 @@ MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "routing_decision": RoutingDecision,
     "agent_profile": AgentProfile,
     "skill_manifest": SkillManifest,
+    "review_report": ReviewReport,
 }

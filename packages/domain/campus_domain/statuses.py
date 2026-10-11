@@ -86,6 +86,7 @@ class RunEndReason(StrEnum):
     BUDGET_EXHAUSTED = "budget_exhausted"
     OUTCOME_UNKNOWN = "outcome_unknown"
     ROUND_LIMIT = "round_limit"
+    PROTECTED_REFUSAL = "protected_refusal"
 
 
 class ReservationState(StrEnum):

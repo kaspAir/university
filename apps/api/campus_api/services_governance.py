@@ -25,6 +25,8 @@ from campus_infra.models import (
     ModelCatalogRevision,
     PolicyVersion,
     PricingVersion,
+    ProcessingProfile,
+    QualificationRecord,
     Workspace,
 )
 
@@ -136,6 +138,10 @@ def import_policy(db: Session, *, actor: Actor, document: dict, correlation_id: 
     if policy.activation_state != "draft":
         raise CampusError(ErrorCode.VALIDATION_ERROR, "Import nur als Entwurf; Aktivierung ist ein eigener Entscheid",
                           blocked_action="policy.import")
+    if db.execute(select(PolicyVersion).where(PolicyVersion.workspace_id == actor.workspace_id,
+                                              PolicyVersion.revision == policy.revision)).first():
+        raise CampusError(ErrorCode.VERSION_CONFLICT, f"Policy-Revision {policy.revision} existiert bereits; Änderungen brauchen eine neue Revision",
+                          blocked_action="policy.import")
     row = PolicyVersion(id=new_id("POL"), workspace_id=actor.workspace_id, revision=policy.revision,
                         document=policy.model_dump(), state=ActivationState.DRAFT.value, created_by=actor.actor_id)
     db.add(row)
@@ -183,6 +189,10 @@ def import_catalog(db: Session, *, actor: Actor, document: dict, correlation_id:
     ws = db.get(Workspace, actor.workspace_id)
     if catalog.purpose == "test_fixture" and ws is not None and ws.capability_level != "development_mock":
         raise CampusError(ErrorCode.VALIDATION_ERROR, "Fixture-Kataloge nur in development_mock", blocked_action="catalog.import")
+    if db.execute(select(ModelCatalogRevision).where(ModelCatalogRevision.workspace_id == actor.workspace_id,
+                                                      ModelCatalogRevision.revision == catalog.revision)).first():
+        raise CampusError(ErrorCode.VERSION_CONFLICT, f"Katalog-Revision {catalog.revision} existiert bereits; neue Revision nötig",
+                          blocked_action="catalog.import")
     canonical: dict[str, set[str]] = {}
     for dep in catalog.deployments:
         if dep.canonical_model_id:
@@ -197,12 +207,53 @@ def import_catalog(db: Session, *, actor: Actor, document: dict, correlation_id:
     return row
 
 
+def catalog_activation_violations(db: Session, workspace_id: str, catalog: ModelCatalog) -> list[str]:
+    """S1 gate (chapters 8, 20): every enabled deployment needs a bound price, an approved data-processing profile
+    that covers its data labels and provider, and, for runtime catalogs, resolvable qualification evidence."""
+    violations: list[str] = []
+    prices = {p.pricing_ref for p in db.execute(select(PricingVersion).where(PricingVersion.workspace_id == workspace_id)).scalars()}
+    profiles = {p.ref: p for p in db.execute(select(ProcessingProfile).where(ProcessingProfile.workspace_id == workspace_id)).scalars()}
+    quals = {q.ref: q for q in db.execute(select(QualificationRecord).where(QualificationRecord.workspace_id == workspace_id)).scalars()}
+    for dep in catalog.deployments:
+        if not dep.enabled:
+            continue
+        if dep.pricing_ref not in prices:
+            violations.append(f"{dep.id}: pricing_ref {dep.pricing_ref!r} ist keine registrierte Preisfassung (Preisbindung)")
+        profile = profiles.get(dep.processing_profile_ref or "")
+        if profile is None:
+            violations.append(f"{dep.id}: processing_profile_ref {dep.processing_profile_ref!r} ist nicht als Datenfreigabe genehmigt")
+        else:
+            if profile.provider_id != dep.provider_id:
+                violations.append(f"{dep.id}: Datenfreigabe {profile.ref} gilt für Provider {profile.provider_id}, nicht {dep.provider_id}")
+            missing = set(dep.allowed_data_labels) - set(profile.allowed_data_labels)
+            if missing:
+                violations.append(f"{dep.id}: Datenklassen {sorted(missing)} sind in der Datenfreigabe {profile.ref} nicht gedeckt")
+        if catalog.purpose == "runtime_snapshot":
+            for ref in dep.qualification_refs:
+                rec = quals.get(ref)
+                if rec is None:
+                    violations.append(f"{dep.id}: qualification_ref {ref!r} existiert nicht als Nachweis")
+                elif rec.canonical_model_id != dep.canonical_model_id:
+                    violations.append(f"{dep.id}: Nachweis {ref} gehört zu {rec.canonical_model_id}, nicht zu {dep.canonical_model_id}")
+                elif not rec.passed:
+                    violations.append(f"{dep.id}: Nachweis {ref} ist nicht bestanden")
+    return violations
+
+
 def activate_catalog(db: Session, *, actor: Actor, catalog_id: str, correlation_id: str) -> ModelCatalogRevision:
-    """Administrative access is separate from substantive qualification (chapter 8)."""
+    """Administrative access is separate from substantive qualification (chapter 8). Activation refuses unbound prices,
+    missing data authorizations and, for runtime catalogs, unresolvable qualification evidence."""
     authorize("catalog.activate", actor.roles)
     row = _own(db, ModelCatalogRevision, catalog_id, actor, "Katalog")
     if row.state != ActivationState.DRAFT.value:
         raise CampusError(ErrorCode.INVALID_TRANSITION, f"Katalog ist {row.state}")
+    violations = catalog_activation_violations(db, actor.workspace_id, ModelCatalog.model_validate(row.document))
+    if violations:
+        raise CampusError(ErrorCode.VALIDATION_ERROR,
+                          "Katalog kann nicht aktiviert werden: Datenfreigabe, Preisbindung oder Nachweise fehlen",
+                          blocked_action="catalog.activate",
+                          required_resolution="Preisfassung, Datenfreigabe-Profil und Nachweise registrieren, dann erneut aktivieren",
+                          details={"violations": violations})
     for active in db.execute(select(ModelCatalogRevision).where(ModelCatalogRevision.workspace_id == actor.workspace_id,
                                                                   ModelCatalogRevision.state == ActivationState.ACTIVE.value)).scalars():
         active.state = ActivationState.RETIRED.value
@@ -260,3 +311,56 @@ def budget_tree(db: Session, workspace_id: str) -> list[dict]:
 
 def money_of(account: BudgetAccount) -> Money:
     return Money(account.limit_minor, account.currency)
+
+
+# ---------------------------------------------------------------- S1: data authorization and qualification evidence
+
+DATA_LABELS = {"public", "internal", "confidential", "personal"}
+
+
+def approve_processing_profile(db: Session, *, actor: Actor, ref: str, provider_id: str, region: str,
+                               allowed_data_labels: list[str], note: str, correlation_id: str) -> ProcessingProfile:
+    """A data-processing authorization is a protection standard: reserved to the research director (Art. 11, chapter 12)."""
+    authorize("processing_profile.approve", actor.roles)
+    labels = sorted(set(allowed_data_labels))
+    bad = [label for label in labels if label not in DATA_LABELS]
+    if bad or not labels:
+        raise CampusError(ErrorCode.VALIDATION_ERROR, f"Ungültige Datenklassen: {bad or 'keine'}")
+    if not note.strip():
+        raise CampusError(ErrorCode.VALIDATION_ERROR, "Datenfreigabe braucht eine Begründung (Vertrag, Region, Grenzen)")
+    if db.execute(select(ProcessingProfile).where(ProcessingProfile.workspace_id == actor.workspace_id,
+                                                  ProcessingProfile.ref == ref)).first():
+        raise CampusError(ErrorCode.VERSION_CONFLICT, "Profil existiert; Änderungen brauchen eine neue Kennung")
+    row = ProcessingProfile(id=new_id("PP"), workspace_id=actor.workspace_id, ref=ref, provider_id=provider_id, region=region,
+                            allowed_data_labels=labels, note=note, approved_by=actor.actor_id)
+    db.add(row)
+    db.flush()
+    record(db, actor=actor, command="processing_profile.approve", object_type="processing_profile", object_id=ref,
+           object_version=None, correlation_id=correlation_id,
+           payload={"provider_id": provider_id, "region": region, "allowed_data_labels": labels})
+    return row
+
+
+def record_qualification(db: Session, *, actor: Actor, ref: str, canonical_model_id: str, task_class: str, suite_ref: str,
+                         result_summary: str, passed: bool, evaluated_by: str, evaluated_by_kind: str,
+                         correlation_id: str) -> QualificationRecord:
+    """Qualification evidence for a (model, task class) combination. A model never certifies itself (T12, Art. 19)."""
+    authorize("qualification.record", actor.roles)
+    if evaluated_by_kind not in {"model", "human"}:
+        raise CampusError(ErrorCode.VALIDATION_ERROR, "evaluated_by_kind muss model oder human sein")
+    if evaluated_by_kind == "model" and evaluated_by == canonical_model_id:
+        raise CampusError(ErrorCode.QUALIFICATION_MISSING, "Ein Modell kann sich nicht selbst qualifizieren (T12)",
+                          blocked_action="qualification.record")
+    if not (suite_ref.strip() and result_summary.strip()):
+        raise CampusError(ErrorCode.VALIDATION_ERROR, "Prüfsatz und Ergebnis sind Pflicht; ein Nachweis ohne Testsatz ist keiner")
+    if db.execute(select(QualificationRecord).where(QualificationRecord.workspace_id == actor.workspace_id,
+                                                    QualificationRecord.ref == ref)).first():
+        raise CampusError(ErrorCode.VERSION_CONFLICT, "Nachweis existiert bereits")
+    row = QualificationRecord(id=new_id("Q"), workspace_id=actor.workspace_id, ref=ref, canonical_model_id=canonical_model_id,
+                              task_class=task_class, suite_ref=suite_ref, result_summary=result_summary, passed=passed,
+                              evaluated_by=evaluated_by, evaluated_by_kind=evaluated_by_kind, created_by=actor.actor_id)
+    db.add(row)
+    db.flush()
+    record(db, actor=actor, command="qualification.record", object_type="qualification", object_id=ref, object_version=None,
+           correlation_id=correlation_id, payload={"canonical_model_id": canonical_model_id, "task_class": task_class, "passed": passed})
+    return row
