@@ -19,5 +19,14 @@ services:
       timeout: 3s
       retries: 20
 
+  temporal:
+    # Temporal dev server (in-memory, UI on 8233). Production needs a persistent Temporal deployment (ADR-0008).
+    image: temporalio/temporal:latest
+    container_name: campus-temporal
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-port", "8233"]
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+
 volumes:
   db_data:

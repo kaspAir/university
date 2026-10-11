@@ -183,6 +183,31 @@ class ReviewReport(_Strict):
     uncertainties: list[str]
 
 
+ClaimKind = Literal["observation", "computation", "derivation", "hypothesis", "legal_assessment", "normative_proposal"]
+
+
+class EvidenceRef(_Strict):
+    passage_id: str = Field(min_length=1)
+    note: str
+
+
+class ClaimItem(_Strict):
+    local_id: str = Field(min_length=1)
+    statement: str = Field(min_length=1)
+    kind: ClaimKind
+    validity_conditions: str
+    evidence: list[EvidenceRef]
+    depends_on: list[str]
+
+
+class ClaimSet(_Strict):
+    """Repository addition (S2): what a generation run declares. The core, not the model, decides what counts as observed."""
+
+    claims: list[ClaimItem] = Field(min_length=1)
+    open_questions: list[str]
+    omissions: list[str]
+
+
 MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "model_catalog": ModelCatalog,
     "task_need": TaskNeed,
@@ -191,4 +216,5 @@ MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "agent_profile": AgentProfile,
     "skill_manifest": SkillManifest,
     "review_report": ReviewReport,
+    "claim_set": ClaimSet,
 }

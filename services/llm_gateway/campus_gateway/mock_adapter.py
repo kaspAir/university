@@ -31,11 +31,13 @@ class MockAdapter:
         if request.invocation_id in self._fail or native.startswith("mock-fail"):
             raise ProviderUnavailable("mock provider unavailable before send")
         if native.startswith("mock-refuse"):
-            raise ProviderRefusal("mock_category", "synthetic refusal")
+            raise ProviderRefusal("mock_category", "synthetic refusal", usage=Usage(input_tokens=17, output_tokens=0))
         text = " ".join(str(b.get("text", "")) for b in request.content_blocks)
         digest = hashlib.sha256((request.invocation_id + text).encode("utf-8")).hexdigest()[:12]
         input_tokens = max(1, len(text) // 4)
-        if request.output_contract is not None:
+        if request.output_contract is not None and "badjson" in str(request.metadata.get("task_class", "")):
+            reply = "{ not valid json"  # content-check failure probe: the call happened, the answer violates the contract
+        elif request.output_contract is not None:
             reply = json.dumps(self._structured(request), ensure_ascii=False)
         else:
             reply = f"[MOCK {digest}] synthetic response; not a research result"
@@ -69,10 +71,22 @@ class MockAdapter:
                                  for c in candidates[1:]],
                 "uncertainties": ["Synthetischer Vorschlag eines Mock-Adapters."],
             }
+        if "claims" in props:  # claim_set: one evidenced observation per given passage, plus one unsupported "computation" (T04 probe)
+            passage_ids = list(request.metadata.get("passage_ids") or [])
+            claims = [{"local_id": f"c{i + 1}", "statement": f"Synthetische Beobachtung aus Passage {pid}.", "kind": "observation",
+                       "validity_conditions": "Nur für die zitierte Quellenfassung.", "evidence": [{"passage_id": pid, "note": "Mock"}],
+                       "depends_on": []} for i, pid in enumerate(passage_ids[:3])]
+            claims.append({"local_id": "m1", "statement": "Synthetischer Messwert ohne Lauf: 42 Prozent.", "kind": "computation",
+                           "validity_conditions": "keine", "evidence": [], "depends_on": [c["local_id"] for c in claims[:1]]})
+            return {"claims": claims, "open_questions": ["Mock: offene Frage"], "omissions": ["Mock: nichts Weiteres untersucht"]}
         if "verdict" in props:  # review_report: a task class containing "contested" yields objections (test switch)
-            verdict = "objections" if "contested" in str(request.metadata.get("task_class", "")) else "no_objection"
+            task_class = str(request.metadata.get("task_class", ""))
+            verdict = "objections" if "contested" in task_class else "no_objection"
             findings = []
-            if verdict == "objections":
+            if "inconsistent" in task_class:  # contradictory report: lenient verdict with a blocking finding (S1.1 finding 4 probe)
+                findings = [{"subject": "Widersprüchlicher Einwand", "argument": "Mock-Prüfer meldet blockierenden Einwand trotz no_objection.",
+                             "severity": "blocking", "scope": "gesamtes Artefakt"}]
+            elif verdict == "objections":
                 findings = [{"subject": "Synthetischer Einwand", "argument": "Mock-Prüfer meldet einen Einwand zu Testzwecken.",
                              "severity": "major", "scope": "gesamtes Artefakt"}]
             return {"verdict": verdict, "checked_aspects": ["Mock-Prüfung"], "findings": findings,

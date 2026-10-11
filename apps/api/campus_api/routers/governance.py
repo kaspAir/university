@@ -167,12 +167,12 @@ def catalog_status(actor: Actor = Depends(current_actor), db: Session = Depends(
 
 
 @router.get("/model-catalog/discovery")
-def discover_models(adapter: str, secret_ref: str, api_base: str | None = None, actor: Actor = Depends(current_actor)) -> dict:
-    """Native model ids a provider reports. Discovery is neither data authorization nor qualification (chapter 8)."""
+def discover_models(deployment_id: str, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)) -> dict:
+    """Native model ids a provider reports, through a REGISTERED deployment (adapter, endpoint and secret from the catalog).
+    Discovery is neither data authorization nor qualification (chapter 8)."""
     from .. import services_research
 
-    ids = services_research.discover_models(actor=actor, adapter_name=adapter, secret_ref=secret_ref, api_base=api_base)
-    return {"adapter": adapter, "model_ids": ids, "note": "Discovery ist weder Datenfreigabe noch Qualifikation."}
+    return services_research.discover_models(db, actor=actor, deployment_id=deployment_id)
 
 
 class ProcessingProfileBody(BaseModel):

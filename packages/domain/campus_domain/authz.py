@@ -26,6 +26,13 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "qualification.record": frozenset({Role.RESEARCH_DIRECTOR, Role.REVIEWER}),
     "catalog.discover": frozenset({Role.OPERATOR}),
     "review.start": frozenset({Role.REVIEWER, Role.RESEARCH_DIRECTOR}),
+    "source.fetch": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "source.retract": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),
+    "dossier.build": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "artifact.approve": frozenset({Role.RESEARCH_DIRECTOR}),  # result release is reserved (Art. 11, 22)
+    "publication.release": frozenset({Role.RESEARCH_DIRECTOR}),  # external release is reserved (Art. 11, 22)
+    "workflow.start": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "task.hold.release": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),
     "budget.create_child": frozenset({Role.RESEARCH_DIRECTOR}),
     "project.create": frozenset({Role.RESEARCH_DIRECTOR}),
     "task.create": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),

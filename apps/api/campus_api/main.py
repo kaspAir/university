@@ -8,7 +8,7 @@ from campus_infra.db import make_engine, make_session_factory
 
 from . import errors
 from .errors import trace_id
-from .routers import auth, governance, health, research
+from .routers import auth, governance, health, research, research_flow
 from .settings import Settings, get_settings
 
 API_PREFIX = "/api/v1"
@@ -47,6 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(governance.router, prefix=API_PREFIX)
     app.include_router(research.router, prefix=API_PREFIX)
+    app.include_router(research_flow.router, prefix=API_PREFIX)
     return app
 
 

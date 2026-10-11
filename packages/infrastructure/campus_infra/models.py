@@ -177,6 +177,7 @@ class Reservation(Base):
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
     account_id: Mapped[str] = mapped_column(ForeignKey("budget_accounts.id"), nullable=False)
     task_id: Mapped[str | None] = mapped_column(String(40))
+    routing_decision_id: Mapped[str | None] = mapped_column(String(40))  # the route this reservation is bound to (S1.1)
     purpose: Mapped[str] = mapped_column(String(20), nullable=False)  # generation | review | selector
     amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
@@ -225,6 +226,8 @@ class Task(Base):
     task_need: Mapped[dict] = mapped_column(JSONB, nullable=False)
     state: Mapped[str] = mapped_column(String(20), nullable=False, default="planned")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    hold_reason: Mapped[str | None] = mapped_column(Text)  # e.g. unresolved protected refusal (S1.1): blocks every model call
+    hold_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _ts()
 
 
@@ -404,8 +407,10 @@ class ArtifactVersion(Base):
     __tablename__ = "artifact_versions"
     id: Mapped[str] = mapped_column(String(40), primary_key=True)
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
-    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
-    run_attempt_id: Mapped[str] = mapped_column(ForeignKey("run_attempts.id"), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"))
+    run_attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"))
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     kind: Mapped[str] = mapped_column(String(40), nullable=False)
     content: Mapped[dict] = mapped_column(JSONB, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -428,6 +433,7 @@ class ReviewReportRecord(Base):
     producer_canonical_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
     invocation_id: Mapped[str] = mapped_column(String(80), nullable=False)
     verdict: Mapped[str] = mapped_column(String(20), nullable=False)
+    consistent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)  # verdict vs. findings (S1.1 finding 4)
     document: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = _ts()
 
@@ -445,4 +451,155 @@ class FindingRecord(Base):
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
     scope: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")  # open | fixed | rejected | limited | escalated
+    created_at: Mapped[datetime] = _ts()
+
+
+# ---------------------------------------------------------------- S2 additions
+
+
+class Source(Base):
+    """A source identity per project (normalized URL). Versions carry the fetched content (chapter 14)."""
+
+    __tablename__ = "sources"
+    __table_args__ = (UniqueConstraint("project_id", "normalized_url"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    normalized_url: Mapped[str] = mapped_column(Text, nullable=False)
+    host: Mapped[str] = mapped_column(String(253), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")  # active | retracted
+    retraction_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _ts()
+
+
+class SourceVersion(Base):
+    __tablename__ = "source_versions"
+    __table_args__ = (UniqueConstraint("source_id", "version"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    source_id: Mapped[str] = mapped_column(ForeignKey("sources.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fetched_at: Mapped[datetime] = _ts()
+    final_url: Mapped[str] = mapped_column(Text, nullable=False)
+    http_status: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    raw_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    extracted_text: Mapped[str] = mapped_column(Text, nullable=False)
+    extractor_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    redirect_chain: Mapped[list] = mapped_column(JSONB, nullable=False)
+    fetched_by_task_id: Mapped[str | None] = mapped_column(String(40))
+
+
+class SourcePassage(Base):
+    """A locatable passage: character offsets into the extracted text of one source version (chapter 14)."""
+
+    __tablename__ = "source_passages"
+    __table_args__ = (UniqueConstraint("source_version_id", "ordinal"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    source_version_id: Mapped[str] = mapped_column(ForeignKey("source_versions.id"), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class ClaimVersion(Base):
+    __tablename__ = "claim_versions"
+    __table_args__ = (UniqueConstraint("claim_id", "version"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    run_attempt_id: Mapped[str] = mapped_column(ForeignKey("run_attempts.id"), nullable=False)
+    artifact_version_id: Mapped[str] = mapped_column(ForeignKey("artifact_versions.id"), nullable=False)
+    claim_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    local_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    declared_kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    stored_kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    epistemic_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    assessment_ref: Mapped[str] = mapped_column(String(80), nullable=False)
+    validity_conditions: Mapped[str] = mapped_column(Text, nullable=False)
+    flags: Mapped[list] = mapped_column(JSONB, nullable=False)
+    producer_canonical_model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    reassessment_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class EvidenceLink(Base):
+    __tablename__ = "evidence_links"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    claim_version_id: Mapped[str] = mapped_column(ForeignKey("claim_versions.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)  # source_passage | own_run
+    source_passage_id: Mapped[str | None] = mapped_column(ForeignKey("source_passages.id"))
+    run_attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class DependencyEdge(Base):
+    __tablename__ = "dependency_edges"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    from_claim_version_id: Mapped[str] = mapped_column(ForeignKey("claim_versions.id"), nullable=False)
+    to_claim_version_id: Mapped[str] = mapped_column(ForeignKey("claim_versions.id"), nullable=False)
+    relation: Mapped[str] = mapped_column(String(20), nullable=False, default="supports")
+
+
+class ReassessmentTask(Base):
+    """Closes the gap between storing a correction event and acting on it (Art. 23, chapter 14, T09)."""
+
+    __tablename__ = "reassessment_tasks"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    trigger: Mapped[str] = mapped_column(String(40), nullable=False)
+    trigger_object_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    affected_claim_version_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    responsible_role: Mapped[str] = mapped_column(String(40), nullable=False)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
+    created_at: Mapped[datetime] = _ts()
+
+
+class Approval(Base):
+    """Binds artifact id, version hash, purpose and target to a human decision (chapter 15, T08)."""
+
+    __tablename__ = "approvals"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    artifact_version_id: Mapped[str] = mapped_column(ForeignKey("artifact_versions.id"), nullable=False)
+    artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(40), nullable=False)
+    human_decision_id: Mapped[str] = mapped_column(ForeignKey("human_decisions.id"), nullable=False)
+    option: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class ReleaseAttempt(Base):
+    __tablename__ = "release_attempts"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    artifact_version_id: Mapped[str] = mapped_column(ForeignKey("artifact_versions.id"), nullable=False)
+    artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    approval_id: Mapped[str] = mapped_column(ForeignKey("approvals.id"), nullable=False)
+    target: Mapped[str] = mapped_column(Text, nullable=False)
+    human_decision_id: Mapped[str] = mapped_column(ForeignKey("human_decisions.id"), nullable=False)
+    state: Mapped[str] = mapped_column(String(30), nullable=False)  # recorded_no_channel (S2) | sent | failed
+    created_at: Mapped[datetime] = _ts()
+
+
+class WorkflowRun(Base):
+    __tablename__ = "workflow_runs"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)  # Temporal workflow id
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    task_queue: Mapped[str] = mapped_column(String(80), nullable=False)
+    started_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = _ts()

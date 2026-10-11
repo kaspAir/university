@@ -11,6 +11,7 @@ pythonpath = [
   "packages/contracts",
   "packages/infrastructure",
   "services/llm_gateway",
+  "workers/research",
   "apps/api",
 ]
 testpaths = ["tests"]
@@ -22,7 +23,7 @@ filterwarnings = ["error::DeprecationWarning:campus_.*"]
 [tool.ruff]
 line-length = 140
 target-version = "py312"
-src = ["packages/domain", "packages/contracts", "packages/infrastructure", "services/llm_gateway", "apps/api"]
+src = ["packages/domain", "packages/contracts", "packages/infrastructure", "services/llm_gateway", "workers/research", "apps/api"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B", "UP"]

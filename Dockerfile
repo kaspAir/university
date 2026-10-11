@@ -2,12 +2,13 @@
 FROM python:3.12-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/packages/domain:/app/packages/contracts:/app/packages/infrastructure:/app/services/llm_gateway:/app/apps/api
+    PYTHONPATH=/app/packages/domain:/app/packages/contracts:/app/packages/infrastructure:/app/services/llm_gateway:/app/workers/research:/app/apps/api
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY apps ./apps
 COPY packages ./packages
 COPY services ./services
+COPY workers ./workers
 COPY migrations ./migrations
 COPY alembic.ini ./
 COPY config ./config

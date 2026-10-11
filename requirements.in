@@ -11,3 +11,5 @@ jsonschema
 python-multipart
 anthropic
 openai
+temporalio
+httpx

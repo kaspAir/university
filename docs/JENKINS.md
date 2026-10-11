@@ -83,7 +83,12 @@ Sie legt je Build ein Docker-Netz an, startet darin `postgres:16` als Sidecar un
 (Unit, Integration gegen das Sidecar-PostgreSQL, Adapterverträge, statische Grenzen) und `ruff`. Der Workspace
 liegt im Jenkins-Volume `university_jenkins_data`; der Testcontainer bindet dieses Volume unter demselben Pfad
 ein und läuft mit der Benutzerkennung des Jenkins-Prozesses, damit keine root-eigenen Dateien zurückbleiben.
-Heisst das Volume anders, in der Pipeline `JENKINS_HOME_VOLUME` anpassen. Die Integrationstests setzen das
+Heisst das Volume anders, in der Pipeline `JENKINS_HOME_VOLUME` anpassen.
+
+Seit S2 läuft neben PostgreSQL ein zweiter Sidecar `temporalio/temporal` (Entwicklungsserver, In-Memory, je Build); die
+Workflow-Tests verbinden sich über `CAMPUS_TEST_TEMPORAL_ADDRESS`. Lokal ohne diese Variable starten die Tests den
+Entwicklungsserver über das SDK selbst. Ist Temporal nicht erreichbar, werden diese Tests übersprungen und als
+übersprungen gemeldet, nie als bestanden. Die Integrationstests setzen das
 Schema per Alembic auf und ab. Ohne erreichbare Datenbank würden sie **übersprungen** gemeldet, nie
 durch SQLite ersetzt. Im CI gibt es keine Rolle `campus_app`; die Migration überspringt dann nur die
 Rechtevergabe, der Append-only-Trigger auf `audit_events` wird trotzdem angelegt und getestet.

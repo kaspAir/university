@@ -99,6 +99,19 @@ nur mit `CAMPUS_LIVE_TESTS=1` und kosten Geld.
 Ein beendeter Lauf wird mit `POST /api/v1/runs/{id}/review` durch das in der Route autorisierte, kanonisch andere
 Modell geprüft. Einwände bleiben als `findings` offen, bis Menschen sie bearbeiten.
 
+## Dauerhafter Ablauf (S2)
+
+```bash
+docker compose up -d temporal                 # Entwicklungsserver, UI unter http://localhost:8233
+export CAMPUS_TEMPORAL_ADDRESS=localhost:7233
+.venv/Scripts/python -m campus_workers.worker                           # Hauptqueue campus-research
+.venv/Scripts/python -m campus_workers.worker campus-research-review    # optional: getrennte Prüfer-Instanz
+```
+
+`POST /api/v1/tasks/{id}/workflow` startet den Ablauf Quellen → Route → Erzeugung → Prüfung → Dossier; `GET /api/v1/workflows/{id}`
+zeigt Status und Stufe; `POST /api/v1/workflows/{id}/stop` signalisiert einen Stopp mit Grund. Quellen lassen sich auch einzeln
+über `POST /api/v1/sources/fetch` aufnehmen (öffentliche Ziele ohne Einzelgenehmigung, interne Netze nie).
+
 ## Was noch fehlt
 
 - Zwei echte freigegebene Modellzugänge (Betriebsentscheid, S1-Tor); bis dahin Leistungsebene `development_mock`.

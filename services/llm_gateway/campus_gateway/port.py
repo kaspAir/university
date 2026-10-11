@@ -63,10 +63,11 @@ class ProviderRejected(Exception):
 class ProviderRefusal(Exception):
     """The provider declined for safety reasons. Never routed around (policy fallback.protected_refusal)."""
 
-    def __init__(self, category: str | None, explanation: str | None = None):
+    def __init__(self, category: str | None, explanation: str | None = None, usage: Usage | None = None):
         super().__init__(f"refusal:{category or 'unspecified'}")
         self.category = category
         self.explanation = explanation
+        self.usage = usage  # a refusal is a received answer: tokens were consumed and must be settled, not released
 
 
 class CapabilityUnsupported(Exception):
@@ -96,6 +97,6 @@ class InvocationJournal(Protocol):
 
     def complete(self, response: LLMResponse) -> None: ...
 
-    def fail(self, invocation_id: str, reason: str) -> None: ...
+    def fail(self, invocation_id: str, reason: str, usage: Usage | None = None) -> None: ...
 
     def mark_unknown(self, invocation_id: str, reason: str) -> None: ...

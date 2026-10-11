@@ -56,7 +56,8 @@ def free_minor(session: Session, account: BudgetAccount) -> int:
     return available_minor(account.limit_minor, consumed_minor(session, account), 0)
 
 
-def reserve(session: Session, *, account_id: str, amount: Money, task_id: str | None, purpose: str) -> Reservation:
+def reserve(session: Session, *, account_id: str, amount: Money, task_id: str | None, purpose: str,
+            routing_decision_id: str | None = None) -> Reservation:
     """Atomically reserve on one account. Caller owns the transaction."""
     chain = _chain(session, account_id)
     account = chain[-1]
@@ -68,6 +69,7 @@ def reserve(session: Session, *, account_id: str, amount: Money, task_id: str | 
         workspace_id=account.workspace_id,
         account_id=account.id,
         task_id=task_id,
+        routing_decision_id=routing_decision_id,
         purpose=purpose,
         amount_minor=amount.amount_minor,
         currency=amount.currency,

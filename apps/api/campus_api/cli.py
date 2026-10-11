@@ -50,20 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--workspace", required=True)
     p.add_argument("path")
 
-    p = sub.add_parser("probe-provider", help="Discovery: native Modellkennungen eines freigegebenen Adapters auflisten (keine Freigabe)")
-    p.add_argument("--adapter", required=True, help="Adaptername; muss in CAMPUS_APPROVED_ADAPTERS stehen")
-    p.add_argument("--secret-ref", required=True, help="secret://providers/<name> -> Umgebungsvariable CAMPUS_SECRET_PROVIDERS_<NAME>")
-    p.add_argument("--api-base", default=None)
+    p = sub.add_parser("probe-provider", help="Discovery über ein registriertes Katalog-Deployment (Adapter, Endpunkt, Schlüsselreferenz aus dem Katalog)")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--deployment-id", required=True)
 
     args = parser.parse_args(argv)
-    if args.cmd == "probe-provider":
-        from . import services_research
-
-        ids = services_research.discover_models(actor=_system_actor("-"), adapter_name=args.adapter, secret_ref=args.secret_ref,
-                                                api_base=args.api_base)
-        print(json.dumps({"adapter": args.adapter, "model_ids": ids,
-                          "note": "Discovery ist weder Datenfreigabe noch Qualifikation (Architektur Kap. 8)."}, indent=1, ensure_ascii=False))
-        return 0
     settings = get_settings()
     factory = make_session_factory(make_engine(settings.database_url))
     correlation = f"cli-{uuid.uuid4().hex}"
@@ -85,6 +76,11 @@ def main(argv: list[str] | None = None) -> int:
                                                     correlation_id=correlation)
             db.commit()
             print(f"Policy-Entwurf {row.id} ({row.revision}) importiert. Aktivierung über die API durch die Forschungsleitung.")
+        elif args.cmd == "probe-provider":
+            from . import services_research
+
+            result = services_research.discover_models(db, actor=_system_actor(args.workspace), deployment_id=args.deployment_id)
+            print(json.dumps(result, indent=1, ensure_ascii=False, default=str))
         elif args.cmd == "import-catalog":
             row = services_governance.import_catalog(db, actor=_system_actor(args.workspace), document=_load(args.path),
                                                      correlation_id=correlation)

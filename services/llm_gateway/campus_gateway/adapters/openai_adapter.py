@@ -7,6 +7,7 @@ import openai
 
 from campus_contracts.models import Deployment
 
+from ..endpoints import check_api_base
 from ..port import (
     CapabilityUnsupported,
     LLMRequest,
@@ -26,8 +27,7 @@ class OpenAIAdapter:
         self._timeout = timeout_seconds
 
     def _client(self, secret_ref: str | None, api_base: str | None) -> openai.OpenAI:
-        if self.name == "openai_compatible" and not api_base:
-            raise ProviderRejected("openai_compatible braucht eine api_base im Katalog")
+        check_api_base(self.name, api_base)  # the key travels only to the approved endpoint (S1.1 finding 5)
         return openai.OpenAI(api_key=self._secrets.resolve(secret_ref), base_url=api_base or None, max_retries=0, timeout=self._timeout)
 
     def list_models(self, secret_ref: str | None, api_base: str | None) -> list[str]:
@@ -81,7 +81,10 @@ class OpenAIAdapter:
             raise ProviderUnavailable(str(exc)) from exc
         choice = completion.choices[0]
         if choice.finish_reason == "content_filter" or getattr(choice.message, "refusal", None):
-            raise ProviderRefusal("content_filter", getattr(choice.message, "refusal", None))
+            usage = completion.usage
+            raise ProviderRefusal("content_filter", getattr(choice.message, "refusal", None),
+                                  usage=Usage(input_tokens=usage.prompt_tokens if usage else None,
+                                              output_tokens=usage.completion_tokens if usage else None))
         blocks = []
         if choice.message.content:
             blocks.append({"type": "text", "text": choice.message.content, "origin": "provider"})

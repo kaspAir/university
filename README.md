@@ -17,13 +17,18 @@ unter `00_Basisdokumente/`, die Oberfläche ist in `design_handoff_phronesis_cam
 | `design_handoff_phronesis_campus_ui/` | UI-Handoff: Design System «Modernist», Ansichten, nicht verhandelbare UI-Regeln |
 | `CLAUDE.md` | Entwicklungsanweisung (Paketfassung plus Repo-Bezug) |
 
-## Stand: S0 gebaut, S1 gebaut bis zum Tor
+## Stand: S0, S1 (mit Härtung S1.1) und S2 gebaut, offline geprüft
 
 S0 = Verträge, Migrationen, echte lokale Anmeldung, Rollen, Policy, Audit/Outbox, Budget, Mock-Adapter.
 S1 = Provider-Adapter (Anthropic, OpenAI) hinter dem Gateway, Selector mit Kernprüfung, Neuplanung nach Ausfall,
 Gegenprüfung durch kanonisch anderes Modell, Aktivierungstor (Datenfreigabe, Preisbindung, Nachweise).
-**Das S1-Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid und noch offen**, siehe
-[docs/S1_UMSETZUNG.md](docs/S1_UMSETZUNG.md) Abschnitt 3.
+S1.1 = gemeinsame Aufrufprüfung für jeden Modellaufruf, dauerhafte Aufruf- und Kostennachweise, Fassungs- und Routenbindung,
+Nachweise je Aufgabenklasse, konsistente Prüfabschlüsse, Schlüsselbindung an genehmigte Endpunkte.
+S2 = Internetdienst mit kontrolliertem Abruf, versionierte Quellen mit Fundstellen, Aussagen mit Evidenz (kein erfundener Messnachweis),
+Rückzug mit Neubewertung, Dossier mit hashgebundener Freigabe, dauerhafter Ablauf auf Temporal.
+
+**Nichts davon ist live nachgewiesen.** Das Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid, siehe
+[docs/S1_UMSETZUNG.md](docs/S1_UMSETZUNG.md) Abschnitt 3. Befunde und Abnahmepunkte: [docs/S2_UMSETZUNG.md](docs/S2_UMSETZUNG.md).
 
 Vorschlag S0: [docs/S0_VORSCHLAG.md](docs/S0_VORSCHLAG.md) · Betrieb: [docs/BETRIEB.md](docs/BETRIEB.md) ·
 Entscheide: [docs/adr/](docs/adr/) · CI: [docs/JENKINS.md](docs/JENKINS.md)
@@ -33,8 +38,9 @@ apps/api/campus_api/            FastAPI: Anmeldung, Sitzungen, CSRF, Commands, F
 packages/domain/campus_domain/  Fachregeln ohne Framework: Statusachsen, Geld, Routing-Kern, Startwächter, Rollen
 packages/contracts/             Sechs JSON-Schemas des Pakets + typisierte Modelle + Routing-Policy
 packages/infrastructure/        SQLAlchemy-Modelle, Audit/Outbox, Budget-Sperren, Aufrufjournal, Blob-Store
-services/llm_gateway/           Gateway-Vertrag und Mock-Adapter (einziger freigegebener Adapter)
-migrations/                     Alembic, Revision 0001_s0_core
+services/llm_gateway/           Gateway-Vertrag, Mock-Adapter, Anthropic- und OpenAI-Adapter, Endpunktbindung, Geheimnisauflösung
+workers/research/               Temporal-Workflow und idempotente Aktivitäten (Quellen, Route, Erzeugung, Prüfung, Dossier)
+migrations/                     Alembic, Revisionen 0001 (eingefrorene S0-Basis) bis 0004
 config/                         Vorlagen aus dem Paket, Provider deaktiviert
 tests/                          unit · integration (PostgreSQL) · adapter_contracts · security
 ```

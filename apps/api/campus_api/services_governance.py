@@ -193,6 +193,11 @@ def import_catalog(db: Session, *, actor: Actor, document: dict, correlation_id:
                                                       ModelCatalogRevision.revision == catalog.revision)).first():
         raise CampusError(ErrorCode.VERSION_CONFLICT, f"Katalog-Revision {catalog.revision} existiert bereits; neue Revision nötig",
                           blocked_action="catalog.import")
+    from campus_gateway.endpoints import check_api_base
+
+    for dep in catalog.deployments:
+        if dep.enabled:
+            check_api_base(dep.adapter, dep.api_base)  # keys are bound to approved endpoints at import time (S1.1 finding 5)
     canonical: dict[str, set[str]] = {}
     for dep in catalog.deployments:
         if dep.canonical_model_id:

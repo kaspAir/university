@@ -20,8 +20,8 @@ class MemoryJournal:
     def complete(self, response) -> None:
         self.entries[response.invocation_id].update(state="completed", model=response.effective_model_id)
 
-    def fail(self, invocation_id, reason) -> None:
-        self.entries[invocation_id].update(state="failed", reason=reason)
+    def fail(self, invocation_id, reason, usage=None) -> None:
+        self.entries[invocation_id].update(state="failed", reason=reason, usage=usage)
 
     def mark_unknown(self, invocation_id, reason) -> None:
         self.entries[invocation_id].update(state="outcome_unknown", reason=reason)

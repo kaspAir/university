@@ -23,7 +23,41 @@ class RunStartContext:
     reservation_present: bool
     review_required: bool
     review_reservation_present: bool
+    task_hold_reason: str | None = None
+    catalog_revision_matches: bool = True
     extra: dict = field(default_factory=dict)
+
+
+@dataclass
+class InvocationContext:
+    """The common pre-call check for EVERY external model call: selector, generation, review (S1.1 finding 1)."""
+
+    purpose: str  # selector | generation | review
+    workspace_stopped: bool
+    mandate_state: MandateState | None
+    task_hold_reason: str | None
+    route_state: str | None
+    reservation_present: bool
+    policy_revision: str | None = None
+
+
+def check_invocation(ctx: InvocationContext) -> None:
+    """Order: global stop, mandate, task hold (e.g. unresolved protected refusal), authorized route, bound reservation."""
+    action = f"llm.invoke:{ctx.purpose}"
+    if ctx.workspace_stopped:
+        raise CampusError(ErrorCode.WORKSPACE_STOPPED, "Alle Läufe sind angehalten (Stopp Forschungsleitung); kein Modellaufruf",
+                          blocked_action=action, required_resolution="Wiederaufnahme mit dokumentiertem Grund (Art. 12)")
+    if ctx.mandate_state != MandateState.APPROVED:
+        raise CampusError(ErrorCode.MANDATE_NOT_APPROVED, "Kein freigegebenes Mandat für diese Aufgabe (T02)", blocked_action=action)
+    if ctx.task_hold_reason:
+        raise CampusError(ErrorCode.TASK_HELD, f"Aufgabe ist gesperrt: {ctx.task_hold_reason}", blocked_action=action,
+                          required_resolution="Sperre durch Forschungsleitung oder Integritätsfunktion mit Begründung aufheben (Art. 12, 18)")
+    if ctx.route_state != "authorized":
+        raise CampusError(ErrorCode.ROUTE_NOT_AUTHORIZED, "Keine vom Kontrollkern autorisierte Route für diesen Aufruf", blocked_action=action,
+                          policy_version=ctx.policy_revision)
+    if not ctx.reservation_present:
+        raise CampusError(ErrorCode.BUDGET_EXHAUSTED, f"Keine an diese Route gebundene Reservierung ({ctx.purpose})", blocked_action=action,
+                          policy_version=ctx.policy_revision)
 
 
 def check_run_start(ctx: RunStartContext) -> None:
@@ -42,6 +76,9 @@ def check_run_start(ctx: RunStartContext) -> None:
             blocked_action="run.start",
             required_resolution="Mandat durch die Forschungsleitung freigeben lassen (Art. 9, 11)",
         )
+    if ctx.task_hold_reason:
+        raise CampusError(ErrorCode.TASK_HELD, f"Aufgabe ist gesperrt: {ctx.task_hold_reason}", blocked_action="run.start",
+                          required_resolution="Sperre mit Begründung aufheben (Art. 12, 18)")
     if ctx.policy_state != ActivationState.ACTIVE:
         raise CampusError(
             ErrorCode.POLICY_NOT_ACTIVE,
@@ -97,6 +134,14 @@ def check_run_start(ctx: RunStartContext) -> None:
             "Keine vom Kontrollkern autorisierte Modellroute",
             blocked_action="run.start",
             required_resolution="Routenvorschlag prüfen lassen (route.authorize)",
+            policy_version=ctx.policy_revision,
+        )
+    if not ctx.catalog_revision_matches:
+        raise CampusError(
+            ErrorCode.ROUTE_NOT_AUTHORIZED,
+            "Die Route wurde gegen eine andere Katalogfassung autorisiert; Route neu bestimmen (Fassungsbindung)",
+            blocked_action="run.start",
+            required_resolution="route.authorize erneut aufrufen",
             policy_version=ctx.policy_revision,
         )
     if not ctx.reservation_present:

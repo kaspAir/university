@@ -193,10 +193,10 @@ def test_review_requires_a_finished_run(campus):
 # ---------------------------------------------------------------- discovery and roles
 
 def test_discovery_requires_approved_adapter_with_listing(campus):
-    r = campus["api"].get("/model-catalog/discovery?adapter=mock&secret_ref=secret://providers/mock")
-    assert r.status_code == 409 and r.json()["code"] == "ADAPTER_NOT_APPROVED"
-    r = campus["api"].get("/model-catalog/discovery?adapter=anthropic&secret_ref=secret://providers/anthropic")
-    assert r.status_code == 409  # not in CAMPUS_APPROVED_ADAPTERS during tests
+    r = campus["api"].get("/model-catalog/discovery?deployment_id=fixture-deployment-a")
+    assert r.status_code == 409 and r.json()["code"] == "ADAPTER_NOT_APPROVED"  # mock has no listing
+    r = campus["api"].get("/model-catalog/discovery?deployment_id=unregistered")
+    assert r.status_code == 404  # adapter, endpoint and secret only ever come from a registered deployment
 
 
 def test_operator_cannot_approve_data_processing(client, session_factory, workspace_id):

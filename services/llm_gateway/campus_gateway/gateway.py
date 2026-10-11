@@ -9,6 +9,7 @@ from __future__ import annotations
 from campus_contracts.models import Deployment, RoutingDecision
 from campus_domain.errors import CampusError, ErrorCode
 
+from .endpoints import check_api_base
 from .port import (
     Adapter,
     CapabilityUnsupported,
@@ -56,6 +57,7 @@ class Gateway:
                 blocked_action="llm.invoke",
                 required_resolution="Adapter als eigene Softwareänderung freigeben (A01, CAMPUS_APPROVED_ADAPTERS)",
             )
+        check_api_base(deployment.adapter, deployment.api_base)  # keys travel only to approved endpoints (S1.1 finding 5)
         if request.output_contract is not None and deployment.capabilities.structured_output != "supported":
             raise CampusError(
                 ErrorCode.CAPABILITY_UNSUPPORTED,
@@ -85,13 +87,15 @@ class Gateway:
                 required_resolution="Route unter denselben Regeln neu bestimmen (replan_under_same_constraints)",
             ) from exc
         except ProviderRefusal as exc:
-            self._journal.fail(request.invocation_id, f"refusal: {exc.category}")
+            self._journal.fail(request.invocation_id, f"refusal: {exc.category}", usage=exc.usage)
             raise CampusError(
                 ErrorCode.PROTECTED_REFUSAL,
                 f"Provider hat aus Schutzgründen abgelehnt (Kategorie {exc.category or 'unbekannt'}); kein Anbieterwechsel",
                 blocked_action="llm.invoke",
                 retryable=False,
                 required_resolution="Aufgabe fachlich prüfen; Schutzverweigerung wird nicht umgangen (Kap. 10)",
+                details={"usage": {"input_tokens": exc.usage.input_tokens, "output_tokens": exc.usage.output_tokens} if exc.usage else None,
+                         "hold": True},
             ) from exc
         except ProviderRejected as exc:
             self._journal.fail(request.invocation_id, f"rejected: {exc}")

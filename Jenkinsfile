@@ -53,8 +53,9 @@ pipeline {
                     set -eu
                     NET="campus-ci-$(printf '%s' "$BUILD_TAG" | tr -c 'A-Za-z0-9_.-' '-' | tr 'A-Z' 'a-z')"
                     PG="pg-$NET"
+                    TP="tp-$NET"
                     cleanup() {
-                        docker rm -f "$PG" >/dev/null 2>&1 || true
+                        docker rm -f "$PG" "$TP" >/dev/null 2>&1 || true
                         docker network rm "$NET" >/dev/null 2>&1 || true
                     }
                     trap cleanup EXIT
@@ -63,10 +64,13 @@ pipeline {
                     docker run -d --name "$PG" --network "$NET" \
                         -e POSTGRES_USER=campus_owner -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=campus_test \
                         postgres:16
+                    # Temporal dev server as a second sidecar (S2 workflow tests); in-memory, per build
+                    docker run -d --name "$TP" --network "$NET" temporalio/temporal:latest server start-dev --ip 0.0.0.0
                     docker run --rm --network "$NET" \
                         -u "$(id -u):$(id -g)" -e HOME=/tmp \
                         -v "$JENKINS_HOME_VOLUME:/var/jenkins_home" -w "$WORKSPACE" \
                         -e CAMPUS_TEST_DATABASE_URL="postgresql+psycopg://campus_owner:ci@$PG:5432/campus_test" \
+                        -e CAMPUS_TEST_TEMPORAL_ADDRESS="$TP:7233" \
                         -e CAMPUS_CAPABILITY_LEVEL=development_mock -e PIP_DISABLE_PIP_VERSION_CHECK=1 \
                         python:3.12-slim sh ci/run_tests.sh
                 '''

@@ -193,7 +193,23 @@ def test_openai_content_filter_is_a_refusal(catalog):
         adapter.invoke(_request(), _deployment(catalog, adapter="openai"))
 
 
-def test_openai_compatible_needs_api_base(catalog):
+def test_openai_compatible_needs_an_approved_api_base(catalog, monkeypatch):
+    from campus_domain.errors import CampusError, ErrorCode
+
     adapter = OpenAIAdapter(StaticSecrets(), name="openai_compatible")
-    with pytest.raises(ProviderRejected, match="api_base"):
+    with pytest.raises(CampusError) as excinfo:
         adapter.invoke(_request(), _deployment(catalog, adapter="openai_compatible", api_base=None))
+    assert excinfo.value.code == ErrorCode.ENDPOINT_NOT_APPROVED
+    monkeypatch.setenv("CAMPUS_APPROVED_API_HOSTS", "")
+    with pytest.raises(CampusError) as excinfo:
+        adapter.invoke(_request(), _deployment(catalog, adapter="openai_compatible", api_base="https://unknown.example/v1"))
+    assert excinfo.value.code == ErrorCode.ENDPOINT_NOT_APPROVED
+
+
+def test_official_adapter_refuses_foreign_endpoint_before_building_a_client(catalog):
+    from campus_domain.errors import CampusError, ErrorCode
+
+    adapter = AnthropicAdapter(StaticSecrets())
+    with pytest.raises(CampusError) as excinfo:
+        adapter._client("secret://providers/test", "https://evil.example/v1")
+    assert excinfo.value.code == ErrorCode.ENDPOINT_NOT_APPROVED

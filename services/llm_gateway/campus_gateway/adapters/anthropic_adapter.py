@@ -13,6 +13,7 @@ import anthropic
 
 from campus_contracts.models import Deployment
 
+from ..endpoints import check_api_base
 from ..port import (
     CapabilityUnsupported,
     LLMRequest,
@@ -33,6 +34,7 @@ class AnthropicAdapter:
         self._timeout = timeout_seconds
 
     def _client(self, secret_ref: str | None, api_base: str | None) -> anthropic.Anthropic:
+        check_api_base(self.name, api_base)  # the key travels only to the approved endpoint (S1.1 finding 5)
         return anthropic.Anthropic(
             api_key=self._secrets.resolve(secret_ref),
             base_url=api_base or None,
@@ -88,7 +90,8 @@ class AnthropicAdapter:
             raise ProviderUnavailable(str(exc)) from exc
         if message.stop_reason == "refusal":
             details = getattr(message, "stop_details", None)
-            raise ProviderRefusal(getattr(details, "category", None), getattr(details, "explanation", None))
+            raise ProviderRefusal(getattr(details, "category", None), getattr(details, "explanation", None),
+                                  usage=Usage(input_tokens=message.usage.input_tokens, output_tokens=message.usage.output_tokens))
         blocks, tool_requests = [], []
         for block in message.content:
             if block.type == "text":

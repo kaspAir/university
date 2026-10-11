@@ -104,6 +104,7 @@ def get_task(task_id: str, actor: Actor = Depends(current_actor), db: Session = 
     proposals = db.execute(select(RouteProposalRecord).where(RouteProposalRecord.task_id == t.id)
                            .order_by(RouteProposalRecord.created_at)).scalars().all()
     return {"task_id": t.id, "project_id": t.project_id, "state": t.state, "version": t.version, "task_need": t.task_need,
+            "hold_reason": t.hold_reason, "hold_since": t.hold_since,
             "route_proposals": [{"id": p.id, "outcome": p.outcome, "error_code": p.error_code, "routing_decision_id": p.routing_decision_id,
                                  "proposal": p.proposal, "assessments": p.assessments, "created_at": p.created_at} for p in proposals]}
 
@@ -205,6 +206,15 @@ def task_reviews(task_id: str, actor: Actor = Depends(current_actor), db: Sessio
 
 class ReasonBody(BaseModel):
     reason: str
+
+
+@router.post("/tasks/{task_id}/hold/release")
+def release_hold(task_id: str, body: ReasonBody, request: Request, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)):
+    """Lift a task hold (e.g. after a protected refusal) with a documented reason; humans only (Art. 12, 18)."""
+    def handler(correlation: str):
+        t = svc.release_hold(db, actor=actor, task_id=task_id, reason=body.reason, correlation_id=correlation)
+        return 200, {"task_id": t.id, "hold_reason": t.hold_reason, "state": t.state}
+    return execute_command(db, actor, request, command="task.hold.release", payload=body, handler=handler, object_type="task", object_id=task_id)
 
 
 @router.post("/runs/{run_id}/cancel")

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/claim_set.schema.json",
+  "title": "claim_set",
+  "description": "Repository addition (S2). Structured output of a generation run: candidate claims with declared kind, validity conditions, evidence references to source passages the run was given, and dependencies. The core decides what may count as observed or computed (T04); the model only declares.",
+  "type": "object",
+  "properties": {
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "local_id": {"type": "string", "minLength": 1},
+          "statement": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["observation", "computation", "derivation", "hypothesis", "legal_assessment", "normative_proposal"]},
+          "validity_conditions": {"type": "string"},
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "passage_id": {"type": "string", "minLength": 1},
+                "note": {"type": "string"}
+              },
+              "required": ["passage_id", "note"],
+              "additionalProperties": false
+            }
+          },
+          "depends_on": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        },
+        "required": ["local_id", "statement", "kind", "validity_conditions", "evidence", "depends_on"],
+        "additionalProperties": false
+      }
+    },
+    "open_questions": {"type": "array", "items": {"type": "string"}},
+    "omissions": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["claims", "open_questions", "omissions"],
+  "additionalProperties": false
+}
