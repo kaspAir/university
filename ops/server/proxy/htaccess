@@ -1,0 +1,13 @@
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# everything goes to the PHP proxy (the API serves its own static files under /campus/static)
+DirectoryIndex index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [L,QSA]
+
+# SECTION BEGIN GIT PROTECTION
+RedirectMatch 404 /\.git
+# SECTION END GIT PROTECTION

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
@@ -15,8 +17,17 @@ router = APIRouter(tags=["operations"])
 def health() -> dict:
     """Process liveness only. LLM latency is never part of this verdict (chapter 19)."""
     s = get_settings()
+    temporal_mode = os.environ.get("CAMPUS_TEMPORAL_MODE", "unknown")
+    limitations = []
+    if temporal_mode.startswith("dev-server"):
+        limitations.append("Temporal im Entwicklungsmodus (SQLite-Persistenz); nicht produktionsreif (ADR-0008)")
+    if s.sandbox_runner == "none":
+        limitations.append("Keine Sandbox: keine Ausführung fremden Codes auf diesem Host (S4 abgeschaltet)")
+    if s.capability_level == "development_mock":
+        limitations.append("Leistungsebene development_mock: Modellaufrufe über den Mock-Adapter, Ergebnisse synthetisch")
     return {"status": "ok", "capability_level": s.capability_level, "sandbox_runner": s.sandbox_runner,
-            "vault": "configured" if s.vault_database_url else "missing"}
+            "vault": "configured" if s.vault_database_url else "missing", "build_sha": os.environ.get("CAMPUS_BUILD_SHA", "unknown"),
+            "temporal_mode": temporal_mode, "pilot_limitations": limitations}
 
 
 @router.get("/ready")

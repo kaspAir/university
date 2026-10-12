@@ -91,7 +91,23 @@ pipeline {
                 }
             }
             steps {
-                error 'Deploy ist noch nicht eingerichtet: Zielhost und Betriebsform offen (Architektur Kap. 24, S0-Vorschlag L2).'
+                script {
+                    if (!env.JOB_NAME.contains('main')) {
+                        echo "Kein Deploy-Ziel für diesen Job (nur main → university.kaspair.ch, Pilot im Userland, docs/BETRIEB_SERVER.md)."
+                        return
+                    }
+                }
+                // Userland pilot on the shared Infomaniak host (ADR-0015). deploy.sh: backup → checkout → deps → migrations → restart → health,
+                // rollback to the previous commit on failure. Prints no secrets; the env file stays on the host.
+                sshagent(credentials: ['university-deploy']) {
+                    sh '''
+                        set -eu
+                        ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes u7031y_kaspar@83.228.238.194                             "bash ~/campus/ops/server/deploy.sh ${GIT_COMMIT}"
+                        # success criterion over the public HTTPS entry point: the deployed build answers
+                        curl -fsS --max-time 20 https://university.kaspair.ch/api/v1/health | grep -q "\"build_sha\":\"${GIT_COMMIT}\""
+                        curl -fsS --max-time 20 https://university.kaspair.ch/api/v1/ready | grep -q '"ready":true'
+                    '''
+                }
             }
         }
     }

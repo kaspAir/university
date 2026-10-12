@@ -1,0 +1,2 @@
+# Server-only additions to requirements.txt (userland pilot host, docs/BETRIEB_SERVER.md). Pinned from the tested install on 12.10.2026.
+pgserver==0.1.4
