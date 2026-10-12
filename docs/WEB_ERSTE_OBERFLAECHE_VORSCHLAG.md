@@ -38,15 +38,26 @@ Artefakten, Runner-Art an Experimenten, Provider-Kennung an jedem Aufruf. Die Ob
 - Betriebsentscheide Anhang F für den Pilot; Backup/Restore-Test; Monitoring; Mehrbenutzer-Identität (OIDC).
 - Schreibdialoge der Oberfläche über den Mandatsentscheid und den Stopp hinaus.
 
-## 1a Befunde zum Host (12.10.2026, von aussen erhoben)
+## 1a Befunde zum Host (12.10.2026, per SSH gemessen mit `ops/host_check.sh`)
 
-- `university.kaspair.ch` löst auf `83.228.238.194` und `2001:1600:18:104::7d` auf: derselbe Infomaniak-Managed-Host wie `hermespia.ch`
-  (Konto `u7031y`). Ausgeliefert wird die Infomaniak-Platzhalterseite («Diese Website ist zurzeit in Bearbeitung», Apache, HSTS aktiv).
-- SSH-Zugang von der Entwicklungsumgebung besteht nicht (nur Passwort/Schlüssel des Kontos; der HERMES-PIA-Deploy-Schlüssel liegt im Jenkins-
-  Credential-Store, nicht als Datei). Ein eigener Deploy-Schlüssel für den Campus ist erzeugt (`~/.ssh/university_deploy`, ed25519); sein
-  öffentlicher Teil ist im Infomaniak-Manager beim SSH-Benutzer zu hinterlegen. Danach lässt sich der Host mit `ops/host_check.sh` prüfen.
-- Bis dahin gelten die dokumentierten Fakten des Hosts (kein Docker, kein Root, Python 3.9.2, kein PostgreSQL bekannt). Sie sind zu
-  verifizieren, nicht anzunehmen.
+`university.kaspair.ch` löst auf `83.228.238.194` / `2001:1600:18:104::7d` auf: derselbe Infomaniak-Managed-Host wie `hermespia.ch`,
+SSH-Login `u7031y_kaspar` (Systembenutzer `uid378723`), Home `/home/clients/2a18…`. Deploy-Schlüssel `~/.ssh/university_deploy` ist hinterlegt.
+
+| Frage | Befund | Folge |
+| --- | --- | --- |
+| Betriebssystem, Ressourcen | Debian 11, 4 Kerne, 12 GB RAM (7 GB frei), 272 GB frei; 13 Gunicorn-Prozesse der Schwesterprodukte laufen bereits | reicht für API, Worker, eine kleine PostgreSQL und Temporal |
+| Root, systemd, Docker | kein Root, kein Docker, kein Podman; Prozesslimit 480 je Benutzer | kein Compose, **keine Sandbox** (S4 bleibt abgeschaltet), Dienste per `nohup` + Cron-Keepalive wie bei hermespia.ch |
+| Python | nur 3.9.2 systemweit; **Userland-Python 3.12.15 über `uv` läuft** (glibc 2.31, in `~/.campus-tools`, 407 MB inkl. Cache) | erfüllt |
+| PostgreSQL | kein Server, kein Client, Ports 5432/5433 geschlossen, MariaDB auf 3306; **gebündeltes PostgreSQL 16.2 (`pgserver`) startet im Userland** (Start + Abfrage 1,6 s, Daten im Home) | erfüllt, aber als **selbst betriebene** Datenbank: Backup, Updates und Verfügbarkeit liegen bei uns, nicht bei Infomaniak |
+| Temporal | **Temporal-CLI 1.9.1 (Server 1.32.0) läuft als einzelne Binärdatei** (`temporal server start-dev --db-filename …`, SQLite-Persistenz) | dauerhafter Ablauf möglich; Dev-Server-Modus, kein hochverfügbarer Dienst (ADR-0008 bleibt: produktiv braucht es einen persistenten Temporal-Betrieb) |
+| Netz | Ausgang zu astral.sh, github.com, temporal.download offen; Apache liefert über PHP-Proxy an `127.0.0.1:<Port>` (Muster hermespia.ch, Ports 8000–8030 belegt) | HTTPS-Eintritt vorhanden; Egress-Proxy für `restricted_research` fehlt weiterhin |
+| Web-Root | `~/sites/university.kaspair.ch` mit Platzhalter, `.htaccess`, `.user.ini` | PHP-Proxy + Rewrite wie bei hermespia.ch einsetzbar |
+
+**Fazit:** Die bestehende Infrastruktur trägt den Campus **ohne Sandbox** vollständig: Python 3.12, PostgreSQL 16 und Temporal laufen
+im Userland dieses Kontos. Die minimale Änderung ist keine Infrastrukturänderung, sondern drei zusätzliche Benutzerprozesse (PostgreSQL,
+Temporal, Campus-API/Worker) mit Keepalive, plus PHP-Proxy und Rewrite im Web-Root. Was nicht geht: Docker und damit der Sandboxpfad (S4) und
+die Isolationsklasse für untrusted Code; dafür bräuchte es einen anderen Server. Das ist für «Campus sehen» und «ersten Auftrag beobachten»
+nicht nötig.
 
 ## 2 Der Host: eine Entscheidung, zwei Wege
 
@@ -66,9 +77,10 @@ Jenkins-Volume), die Angaben stammen aus dem dokumentierten Stand.
 | Aufwand bis sichtbar | zwei Verifikationen vorab, dann ein halber Tag | Server bereitstellen (durch dich), dann ein halber Tag |
 | Risiko | PostgreSQL ungelöst; Python-Workaround ausserhalb des Supports | neuer Host, laufende Kosten |
 
-**Empfehlung: Weg B.** Ein kleiner Server (2 vCPU, 4 GB, Schweiz) mit Docker trägt die Architektur ohne Kompromiss, inklusive Temporal und
-späterer Sandbox-Abnahme. Weg A ist möglich, wenn PostgreSQL verfügbar ist und das Userland-Python funktioniert; beides wäre zuerst auf dem
-Host zu prüfen, nicht anzunehmen. `university.kaspair.ch` kann in beiden Fällen die Adresse sein (DNS auf den neuen Host umstellen).
+**Empfehlung nach der Messung: Weg A im Userland** (Python 3.12 via uv, PostgreSQL 16 via `pgserver`, Temporal-CLI, Gunicorn hinter dem
+PHP-Proxy, Keepalive per Cron). Er nutzt die bestehende Infrastruktur, braucht keinen neuen Server und trägt alles ausser der Sandbox.
+Weg B bleibt der Weg, sobald Experimente in der Sandbox (S4) oder ein hochverfügbarer Temporal-Betrieb gebraucht werden; beide Wege können
+nebeneinander bestehen (Zielhost-Abnahme der Sandbox ist ohnehin ein eigener Entscheid).
 
 ## 3 Die kleinste Oberfläche: serverseitig, ohne Node
 
