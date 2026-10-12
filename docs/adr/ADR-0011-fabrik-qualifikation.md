@@ -10,7 +10,9 @@ Stand: 11.10.2026 · Status: angenommen · Bezug: Architektur Kap. 7 (ADR-04 der
    selbst für die Prüfaufgabe qualifizierten Prüfer auf festem Material. Ein Nachweis trägt die Kombination als Ganzes (`kind=combination`);
    eine andere Skillmenge oder -fassung ist eine andere Kombination. Fehlt ein referenzierter Skill, stoppt der Aufbau vor dem Modellaufruf. Der Prüfer sieht Fall, Rubrik und Ausgabe, nie eine Selbsteinschätzung (A11).
    Der Zertifizierungsregress endet bei einer menschlich eingetragenen Bootstrap-Freigabe (`kind=bootstrap`, nur Forschungsleitung); sie bindet
-   ein kanonisches Modell an eine Aufgabenklasse und weder Profil noch Skills. Die beiden Arten werden nie gemischt (Kap. 7).
+   ein kanonisches Modell an **eine Prüfrolle** (`reviewer` oder `evaluator`) und eine Aufgabenklasse, weder Profil noch Skills. Sie qualifiziert
+   nie einen Erzeuger und nie die andere Prüfrolle; ein Kombinationsnachweis qualifiziert nie einen Prüfer. Die Arten werden nie gemischt (Kap. 7,
+   Art. 17). Altbestand ohne Bindung wird bei der Migration als `legacy_unbound` geführt und nie zur Freigabe befördert.
 5. Aktiviert wird automatisch durch den Kern, nur bei bestandenem Satz und ohne Rückschritt gegenüber der aktiven Fassung; Aktivierung
    erweitert den Geltungsbereich um genau die geprüfte Aufgabenklasse. Alte Fassungen werden nicht still abgelöst (T17).
 6. Jeder Prüfaufruf ist ein regulärer Modellaufruf: Route, gebundene Reservierung, Journal, gemeinsame Vorprüfung, Budget unter einem Projekt.

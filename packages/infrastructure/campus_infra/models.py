@@ -399,7 +399,11 @@ class QualificationRecord(Base):
     passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     evaluated_by: Mapped[str] = mapped_column(String(200), nullable=False)
     evaluated_by_kind: Mapped[str] = mapped_column(String(20), nullable=False)  # model | human
-    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="bootstrap")  # bootstrap (human role approval) | combination
+    # bootstrap (human approval of a canonical model for ONE checking role and task class) | combination (factory evidence for a producer
+    # combination) | legacy_unbound (pre-0008 model-evaluated record without combination: history only, never applies)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="bootstrap")
+    # bootstrap: reviewer | evaluator (required); combination: producer. NULL = undeclared (pre-0008 bootstrap): applies to nothing.
+    role: Mapped[str | None] = mapped_column(String(20))
     profile_ref: Mapped[str | None] = mapped_column(String(120))  # combination: the evaluated profile (required)
     skill_refs: Mapped[list | None] = mapped_column(JSONB)  # combination: the skills actually used, exact set (required, may be empty)
     created_by: Mapped[str] = mapped_column(String(40), nullable=False)

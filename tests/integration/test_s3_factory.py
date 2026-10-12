@@ -24,7 +24,7 @@ def campus(client, session_factory, workspace_id):
     # Bootstrap (chapter 7): the research director records the evaluator qualification of model B by hand once
     r = api.post("/qualifications", {"ref": "boot-evaluator-b", "canonical_model_id": "fixture/model-b@1", "task_class": "evaluation",
                                      "suite_ref": "bootstrap", "result_summary": "Prüferrolle durch Forschungsleitung freigegeben (Bootstrap)",
-                                     "passed": True, "evaluated_by": "forschungsleitung", "evaluated_by_kind": "human"})
+                                     "passed": True, "evaluated_by": "forschungsleitung", "evaluated_by_kind": "human", "role": "evaluator"})
     assert r.status_code == 201, r.text
     return {"api": api, "boot": boot, **state}
 
@@ -171,13 +171,14 @@ def test_qualification_binds_profile_skills_model_and_task_class(campus):
     assert rec["canonical_model_id"] == "fixture/model-a@1" and rec["kind"] == "combination"
     assert rec["profile_ref"] == v2 and rec["skill_refs"] == ["fixture-source-analysis@1"], "profile AND skills are bound jointly"
     assert quals["boot-evaluator-b"]["kind"] == "bootstrap" and quals["boot-evaluator-b"]["profile_ref"] is None
+    assert rec["role"] == "producer" and quals["boot-evaluator-b"]["role"] == "evaluator"
     # runtime catalog: qualified tasks need the combination; the evaluator model B is qualified for "evaluation", not for source analysis
     from tests.conftest import build_catalog_document
 
     # the reviewer model needs its own record for reviewing source analyses (human bootstrap, any profile)
     assert api.post("/qualifications", {"ref": "boot-reviewer-b-source-analysis", "canonical_model_id": "fixture/model-b@1",
                                         "task_class": "source_analysis", "suite_ref": "bootstrap", "result_summary": "Prüferrolle für Quellenanalysen",
-                                        "passed": True, "evaluated_by": "forschungsleitung", "evaluated_by_kind": "human"}).status_code == 201
+                                        "passed": True, "evaluated_by": "forschungsleitung", "evaluated_by_kind": "human", "role": "reviewer"}).status_code == 201
     doc = build_catalog_document() | {"revision": "runtime-combo", "purpose": "runtime_snapshot"}
     for dep in doc["deployments"]:
         dep["qualification_refs"] = []  # declarations removed: only the register counts
@@ -197,15 +198,15 @@ def test_qualification_binds_profile_skills_model_and_task_class(campus):
                                                               "selection_mode": "fixture"})
     assert r.status_code == 409 and r.json()["code"] == "PROPOSAL_INVALID"
     # profile v1 was never evaluated: model A is NOT qualified for the combination (v1, A, source_analysis), although it is for v2;
-    # model B stays eligible through the human record that binds no profile
+    # model B's reviewer approval is no producer qualification either: no producer is eligible for this combination
     other_profile = _create_task(api, project_id, agent_ref="fixture-ai-researcher@1", mode="qualified")
     r = api.post(f"/tasks/{other_profile['task_id']}/routing-decisions",
                  {"proposal": proposal | {"task_id": other_profile["task_id"], "evidence_refs": []}, "selection_mode": "fixture"})
-    assert r.status_code == 409 and r.json()["code"] == "PROPOSAL_INVALID", r.text
+    assert r.status_code == 409 and r.json()["code"] == "NO_ELIGIBLE_MODEL", r.text
     assessed = {a["deployment_id"]: a for a in r.json()["details"]["assessments"]}
-    assert not assessed["fixture-deployment-a"]["eligible"]
-    assert any(x.startswith("EXCLUDED:QUALIFICATION_NOT_FOR_TASK_CLASS") for x in assessed["fixture-deployment-a"]["exclusion_reasons"])
-    assert assessed["fixture-deployment-b"]["eligible"], "a record without profile binding applies to any profile"
+    for dep in ("fixture-deployment-a", "fixture-deployment-b"):
+        assert not assessed[dep]["eligible"]
+        assert any(x.startswith("EXCLUDED:QUALIFICATION_NOT_FOR_TASK_CLASS") for x in assessed[dep]["exclusion_reasons"]), dep
 
 
 def test_t05_protected_test_material_is_hidden_from_producers(client, session_factory, workspace_id, campus):

@@ -119,11 +119,18 @@ def select_reviewer(
     policy: RoutingPolicy,
     excluded: dict[str, str] | None = None,
     qualified_deployments: set[str] | None = None,
+    qualified_reviewers: set[str] | None = None,
+    reviewer_excluded: dict[str, str] | None = None,
 ) -> Deployment:
     """Pick a review deployment that is canonically distinct from the producer and all prior contributors.
 
+    `qualified_reviewers` is the register's reviewer pool (role-bound approvals) and `reviewer_excluded` the exclusions that concern a
+    reviewer (failed attempts, not the producer's missing combination). When the caller supplies neither, the producer's pool and
+    exclusions are used, which is only acceptable where no register view exists at all (fixture mode).
     Deterministic: candidates are ordered by (distinct provider first if preferred, deployment id).
     """
+    reviewer_pool = qualified_reviewers if qualified_reviewers is not None else qualified_deployments
+    reviewer_exclusions = reviewer_excluded if reviewer_excluded is not None else excluded
     review_task = task.model_copy(
         update={
             "role": "reviewer",
@@ -136,7 +143,7 @@ def select_reviewer(
     for dep in catalog.deployments:
         if dep.id == selected.id:
             continue
-        reasons = exclusion_reasons(review_task, dep, policy, excluded, qualified_deployments)
+        reasons = exclusion_reasons(review_task, dep, policy, reviewer_exclusions, reviewer_pool)
         if dep.canonical_model_id == selected.canonical_model_id:
             reasons.append(R_SAME_CANONICAL)  # aliases are not diversity (A03)
         if dep.shared_base_id and dep.shared_base_id == selected.shared_base_id:
@@ -173,6 +180,8 @@ def validate_proposal(
     policy: RoutingPolicy,
     excluded: dict[str, str] | None = None,
     qualified_deployments: set[str] | None = None,
+    qualified_reviewers: set[str] | None = None,
+    reviewer_excluded: dict[str, str] | None = None,
 ) -> ValidatedRoute:
     """Technical admission of a proposal. Plausible language replaces no permission (chapter 9, step 5)."""
     if policy.activation_state != "active":
@@ -220,7 +229,8 @@ def validate_proposal(
                 policy_version=policy.revision,
             )
     needs_review = review_required(task, policy)
-    reviewer = select_reviewer(task, selected, catalog, policy, excluded, qualified_deployments) if needs_review else None
+    reviewer = (select_reviewer(task, selected, catalog, policy, excluded, qualified_deployments, qualified_reviewers, reviewer_excluded)
+                if needs_review else None)
     return ValidatedRoute(selected, reviewer, assessments, proposal, needs_review)
 
 

@@ -145,11 +145,14 @@ def _latest_suite(db: Session, workspace_id: str, ref: str, version: int | None)
 # ---------------------------------------------------------------- evaluation
 
 def _evaluator_qualified(db: Session, workspace_id: str, canonical: str | None, evaluator_task_class: str) -> bool:
+    """An evaluator is qualified only by a human bootstrap approval for the evaluator role and the suite's evaluator task class.
+    Reviewer approvals and producer combination evidence do not count (role separation, Art. 17)."""
     if not canonical:
         return False
     return db.execute(select(QualificationRecord).where(QualificationRecord.workspace_id == workspace_id,
                                                         QualificationRecord.canonical_model_id == canonical,
                                                         QualificationRecord.task_class == evaluator_task_class,
+                                                        QualificationRecord.kind == "bootstrap", QualificationRecord.role == "evaluator",
                                                         QualificationRecord.passed.is_(True))).first() is not None
 
 
@@ -356,7 +359,7 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
                                    task_class=suite.task_class, suite_ref=f"{suite.ref}@{suite.version}",
                                    result_summary=f"{score}% der Fälle bestanden (Schwelle {suite.threshold_percent}%), Kombination {composition.combination_key}",
                                    passed=True, evaluated_by=eval_dep.canonical_model_id or "", evaluated_by_kind="model", created_by=actor.actor_id,
-                                   kind="combination", profile_ref=composition.profile_ref, skill_refs=sorted(composition.skill_refs)))
+                                   kind="combination", role="producer", profile_ref=composition.profile_ref, skill_refs=sorted(composition.skill_refs)))
         if candidate_kind == "agent":
             candidate.operating_status = "active"
             candidate.qualification_status = "task_qualified"

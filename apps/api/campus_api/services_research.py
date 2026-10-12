@@ -326,16 +326,20 @@ def _failed_deployments(db: Session, task: Task) -> dict[str, str]:
 
 
 def _record_applies(rec: QualificationRecord, need: TaskNeed) -> bool:
-    """Applicability of a record to a task (chapter 5: qualification is per combination).
+    """Applicability of a record to a need (chapter 5: qualification is per combination AND per role).
 
-    bootstrap:   human role approval for the canonical model and task class; profile and skills are not bound.
-    combination: applies only to the SAME profile and the SAME skill set. Additional, missing or re-versioned skills are a different
-                 combination and are not silently covered.
+    bootstrap:      human approval of the canonical model for ONE checking role (`reviewer`) and task class; applies only to a need in that
+                    role. It never qualifies a producer combination. An undeclared role (pre-0008) applies to nothing.
+    combination:    producer evidence; applies only to a producer need with the SAME profile and the SAME skill set. Additional, missing or
+                    re-versioned skills are a different combination. It never acts as a reviewer approval.
+    legacy_unbound: history only.
     """
     if rec.task_class != need.task_class or not rec.passed:
         return False
     if rec.kind == "bootstrap":
-        return True
+        return need.role == "reviewer" and rec.role == "reviewer"
+    if rec.kind != "combination" or rec.role != "producer" or need.role != "producer":
+        return False
     if rec.profile_ref is None or rec.skill_refs is None:
         return False  # malformed combination record: never treated as coverage
     return rec.profile_ref == need.agent_profile_version_ref and set(rec.skill_refs) == set(need.skill_version_refs)
@@ -361,7 +365,7 @@ def _qualification_evidence(db: Session, workspace_id: str, catalog: ModelCatalo
             if rec.ref in seen:
                 continue
             seen.add(rec.ref)
-            items.append({"ref": rec.ref, "verified": True, "kind": rec.kind, "task_class": rec.task_class,
+            items.append({"ref": rec.ref, "verified": True, "kind": rec.kind, "role": rec.role, "task_class": rec.task_class,
                           "applies_to_task": rec.task_class == need.task_class,
                           "applies_to_combination": _record_applies(rec, need) and rec.canonical_model_id == dep.canonical_model_id,
                           "profile_ref": rec.profile_ref, "skill_refs": rec.skill_refs, "suite_ref": rec.suite_ref,
@@ -599,12 +603,16 @@ def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict |
                           required_resolution="Aufgabe neu planen (neue Fassung) oder die gebundene Policy aktivieren")
     evidence = _qualification_evidence(db, actor.workspace_id, catalog, need)
     qualified = _qualified_deployments(catalog, evidence)
-    excluded = _failed_deployments(db, task) | _task_class_exclusions(catalog, evidence, need)
+    # the reviewer pool is judged separately: reviewer approvals, not producer combinations (Art. 17, 27)
+    review_need = need.model_copy(update={"role": "reviewer"})
+    qualified_reviewers = _qualified_deployments(catalog, _qualification_evidence(db, actor.workspace_id, catalog, review_need))
+    failed = _failed_deployments(db, task)
+    excluded = failed | _task_class_exclusions(catalog, evidence, need)  # the producer's missing combination does not concern the reviewer
     catalog = _catalog_with_register_evidence(catalog, evidence)  # evidence refs a proposal may cite come from the register
     prior = db.execute(select(func.count()).select_from(RoutingDecisionRecord).where(
         RoutingDecisionRecord.task_id == task.id, RoutingDecisionRecord.document["required_review"].astext == "true")).scalar() or 0
     limit = policy.limits.max_route_replans_per_task
-    if _failed_deployments(db, task) and limit is not None and prior > limit:
+    if failed and limit is not None and prior > limit:
         raise CampusError(ErrorCode.REPLAN_LIMIT_REACHED, f"Neuplanungen erschöpft ({prior - 1} von {limit}); Aufgabe wartet auf Entscheid",
                           blocked_action="route.authorize", policy_version=policy.revision,
                           required_resolution="Menschlicher Entscheid: Aufgabe anpassen, Katalog erweitern oder abbrechen")
@@ -619,7 +627,7 @@ def authorize_route(db: Session, *, actor: Actor, task_id: str, proposal: dict |
     else:
         route_proposal = RouteProposal.model_validate(proposal)
     try:
-        route = routing.validate_proposal(need, route_proposal, catalog, policy, excluded, qualified)
+        route = routing.validate_proposal(need, route_proposal, catalog, policy, excluded, qualified, qualified_reviewers, reviewer_excluded=failed)
     except CampusError as err:
         assessments = err.details.get("assessments") or [a.model_dump() for a in routing.assess_candidates(need, catalog, policy, excluded, qualified)]
         _record_rejection(db, actor, task, route_proposal, assessments, err, correlation_id)

@@ -22,11 +22,11 @@ def campus(client, session_factory, workspace_id):
     api = Api(client)
     api.login(workspace_id, "leitung")
     state = govern(api, boot)
-    for ref, task_class, note in [("boot-evaluator-b", "evaluation", "Prüferrolle (Bootstrap)"),
-                                  ("boot-reviewer-b", "source_analysis", "Prüferrolle für Quellenanalysen (Bootstrap)")]:
+    for ref, task_class, role, note in [("boot-evaluator-b", "evaluation", "evaluator", "Prüferrolle (Bootstrap)"),
+                                        ("boot-reviewer-b", "source_analysis", "reviewer", "Prüferrolle für Quellenanalysen (Bootstrap)")]:
         r = api.post("/qualifications", {"ref": ref, "canonical_model_id": "fixture/model-b@1", "task_class": task_class, "suite_ref": "bootstrap",
                                          "result_summary": note, "passed": True, "evaluated_by": "forschungsleitung", "evaluated_by_kind": "human",
-                                         "kind": "bootstrap"})
+                                         "kind": "bootstrap", "role": role})
         assert r.status_code == 201, r.text
     return {"api": api, "boot": boot, **state}
 
@@ -61,7 +61,7 @@ def _qualified_v2(api: Api, project_id: str) -> tuple[str, dict]:
 
 def test_additional_skill_is_a_different_combination(campus):
     """Proves: a task that uses the qualified profile WITH an extra skill is not covered by the combination record (no silent coverage).
-    Deployment A is excluded for that task; the bootstrap reviewer B stays eligible because bootstrap approvals bind no skills."""
+    Deployment A is excluded for that task. B is excluded as well: its reviewer approval is no producer qualification (see test_s3_roles)."""
     api, project_id = campus["api"], campus["project"]["project_id"]
     v2, _ = _qualified_v2(api, project_id)
     extra = _register_skill(api, "fixture-extra-skill", "1")
@@ -70,10 +70,10 @@ def test_additional_skill_is_a_different_combination(campus):
     assert _route_a(api, same["task_id"]).status_code == 201, "exact combination is covered"
     with_extra = _create_task(api, project_id, agent_ref=v2, mode="qualified", skill_version_refs=[SKILL_V1, extra])
     r = _route_a(api, with_extra["task_id"])
-    assert r.status_code == 409 and r.json()["code"] == "PROPOSAL_INVALID", r.text
+    assert r.status_code == 409 and r.json()["code"] == "NO_ELIGIBLE_MODEL", r.text
     assessed = {a["deployment_id"]: a for a in r.json()["details"]["assessments"]}
     assert not assessed["fixture-deployment-a"]["eligible"] and "QUALIFICATION_MISSING" in assessed["fixture-deployment-a"]["exclusion_reasons"]
-    assert assessed["fixture-deployment-b"]["eligible"]
+    assert not assessed["fixture-deployment-b"]["eligible"] and "QUALIFICATION_MISSING" in assessed["fixture-deployment-b"]["exclusion_reasons"]
 
 
 def test_other_skill_version_is_a_different_combination(campus):
@@ -125,6 +125,13 @@ def test_bootstrap_and_combination_records_are_distinct_kinds(client, session_fa
     model_bootstrap = {"ref": "mb", "canonical_model_id": "fixture/model-a@1", "task_class": "evaluation", "suite_ref": "s", "result_summary": "x",
                        "passed": True, "evaluated_by": "fixture/model-b@1", "evaluated_by_kind": "model", "kind": "bootstrap"}
     assert api.post("/qualifications", model_bootstrap).status_code == 422, "bootstrap approvals are human"
+    human_boot = {"ref": "rb", "canonical_model_id": "fixture/model-a@1", "task_class": "evaluation", "suite_ref": "s", "result_summary": "x",
+                  "passed": True, "evaluated_by": "pruefer", "evaluated_by_kind": "human", "kind": "bootstrap", "role": "evaluator"}
+    assert api.post("/qualifications", human_boot | {"ref": "rb-no-role", "role": None}).status_code == 422, "a bootstrap names its checking role"
+    assert api.post("/qualifications", human_boot | {"ref": "rb-producer", "role": "producer"}).status_code == 422, "producers are never approved by hand"
+    assert api.post("/qualifications", full | {"ref": "full-reviewer", "role": "reviewer"}).status_code == 422, "combination evidence is producer evidence"
+    assert api.post("/qualifications", human_boot | {"ref": "rb-ok"}).status_code == 201
+    # the test client shares one cookie jar: from here on the session belongs to the reviewer
     with session_factory() as db:
         from campus_api import services_identity
         from campus_domain.authz import Role
@@ -135,8 +142,6 @@ def test_bootstrap_and_combination_records_are_distinct_kinds(client, session_fa
         db.commit()
     reviewer = Api(client)
     reviewer.login(workspace_id, "pruefer")
-    human_boot = {"ref": "rb", "canonical_model_id": "fixture/model-a@1", "task_class": "evaluation", "suite_ref": "s", "result_summary": "x",
-                  "passed": True, "evaluated_by": "pruefer", "evaluated_by_kind": "human", "kind": "bootstrap"}
     assert reviewer.post("/qualifications", human_boot).status_code == 403, "bootstrap is reserved to the research director"
     assert reviewer.post("/qualifications", full | {"ref": "full-by-reviewer"}).status_code == 201, "reviewers may record combination evidence"
 
