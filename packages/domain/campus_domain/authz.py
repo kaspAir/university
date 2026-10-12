@@ -43,6 +43,14 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "sandbox.accept": frozenset({Role.RESEARCH_DIRECTOR}),  # accepting an isolation path is a protection decision (Art. 11)
     "sandbox.revoke": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),
     "experiment.run": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "evidence.import": frozenset({Role.OPERATOR}),  # platform test reports (Annex D), never research evidence
+    "pilot.create": frozenset({Role.RESEARCH_DIRECTOR}),  # the study plan is its own release step (Annex C)
+    "pilot.release": frozenset({Role.RESEARCH_DIRECTOR}),  # reserved decision (Art. 11, Annex F)
+    "pilot.arm_project": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "pilot.attach": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "pilot.evaluate": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),  # never the producing role (Art. 17)
+    "pilot.report": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),
+    "pilot.close": frozenset({Role.RESEARCH_DIRECTOR}),
     "budget.create_child": frozenset({Role.RESEARCH_DIRECTOR}),
     "project.create": frozenset({Role.RESEARCH_DIRECTOR}),
     "task.create": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),

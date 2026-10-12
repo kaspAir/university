@@ -10,7 +10,7 @@ from campus_infra.vault import DbCaseVault
 
 from . import errors
 from .errors import trace_id
-from .routers import auth, experiments, factory, governance, health, research, research_flow
+from .routers import auth, experiments, factory, governance, health, pilot, research, research_flow
 from .settings import Settings, get_settings
 
 API_PREFIX = "/api/v1"
@@ -59,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(research_flow.router, prefix=API_PREFIX)
     app.include_router(factory.router, prefix=API_PREFIX)
     app.include_router(experiments.router, prefix=API_PREFIX)
+    app.include_router(pilot.router, prefix=API_PREFIX)
     return app
 
 

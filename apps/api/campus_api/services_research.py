@@ -93,7 +93,8 @@ def _gateway(db: Session, workspace_id: str) -> Gateway:
 # ---------------------------------------------------------------- projects & tasks
 
 def create_project(db: Session, *, actor: Actor, mandate_version_id: str, institute_id: str, title: str, budget: str,
-                   correlation_id: str) -> Project:
+                   correlation_id: str, budget_parent_id: str | None = None) -> Project:
+    """A project under the mandate's root budget or, for pilot arms (S5), under a shared pilot budget of the same mandate."""
     authorize("project.create", actor.roles)
     mandate = _own(db, MandateVersion, mandate_version_id, actor, "Mandatsfassung")
     if mandate.state != MandateState.APPROVED.value:
@@ -101,6 +102,11 @@ def create_project(db: Session, *, actor: Actor, mandate_version_id: str, instit
     institute = _own(db, Institute, institute_id, actor, "Institut")
     root = db.execute(select(BudgetAccount).where(BudgetAccount.mandate_version_id == mandate.id,
                                                   BudgetAccount.parent_id.is_(None))).scalar_one()
+    if budget_parent_id is not None:
+        parent = _own(db, BudgetAccount, budget_parent_id, actor, "Budgetkonto")
+        if parent.mandate_version_id != mandate.id:
+            raise CampusError(ErrorCode.VALIDATION_ERROR, "Budgetkonto gehört zu einem anderen Mandat", blocked_action="project.create")
+        root = parent
     account = budget_service.create_child(db, parent_id=root.id, name=f"Projekt: {title}", limit=parse_money(budget, root.currency))
     project = Project(id=new_id("P"), workspace_id=actor.workspace_id, mandate_version_id=mandate.id, institute_id=institute.id,
                       budget_account_id=account.id, title=title)

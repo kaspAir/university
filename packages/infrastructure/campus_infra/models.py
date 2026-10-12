@@ -754,3 +754,92 @@ class ExperimentRun(Base):
     notes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     created_by: Mapped[str] = mapped_column(String(40), nullable=False)
     created_at: Mapped[datetime] = _ts()
+
+
+class PlatformEvidence(Base):
+    """An imported JUnit report of ONE build: platform evidence, never research evidence (constitution Annex D; S5)."""
+
+    __tablename__ = "platform_evidence"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    build_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str] = mapped_column(String(200), nullable=False)
+    summary: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    covered_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    failed_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    report_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    imported_by: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class PilotStudy(Base):
+    """A pre-registered pilot protocol version (Annex C). Released by a reserved human decision bound to the protocol hash; never edited."""
+
+    __tablename__ = "pilot_studies"
+    __table_args__ = (UniqueConstraint("workspace_id", "ref", "version"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    mandate_version_id: Mapped[str] = mapped_column(ForeignKey("mandate_versions.id"), nullable=False)
+    ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")  # draft | registered | running | closed
+    protocol: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    preregistration_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_suite_id: Mapped[str | None] = mapped_column(ForeignKey("qualification_suites.id"))
+    budget_account_id: Mapped[str] = mapped_column(ForeignKey("budget_accounts.id"), nullable=False)
+    evaluation_project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    decision_id: Mapped[str | None] = mapped_column(ForeignKey("human_decisions.id"))
+    evidence_id: Mapped[str | None] = mapped_column(ForeignKey("platform_evidence.id"))
+    self_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_by: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PilotArm(Base):
+    __tablename__ = "pilot_arms"
+    __table_args__ = (UniqueConstraint("pilot_id", "condition"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    pilot_id: Mapped[str] = mapped_column(ForeignKey("pilot_studies.id"), nullable=False)
+    condition: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class PilotArmProject(Base):
+    __tablename__ = "pilot_arm_projects"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    arm_id: Mapped[str] = mapped_column(ForeignKey("pilot_arms.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, unique=True)
+
+
+class PilotArmTask(Base):
+    __tablename__ = "pilot_arm_tasks"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    arm_id: Mapped[str] = mapped_column(ForeignKey("pilot_arms.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False, unique=True)
+    repetition: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class PilotEvaluation(Base):
+    """Blinded independent evaluation of one arm task on hidden material by a model distinct from every model used in any arm."""
+
+    __tablename__ = "pilot_evaluations"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    pilot_id: Mapped[str] = mapped_column(ForeignKey("pilot_studies.id"), nullable=False)
+    arm_id: Mapped[str] = mapped_column(ForeignKey("pilot_arms.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    repetition: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[str] = mapped_column(String(30), nullable=False)  # running | completed | open_no_independent_evaluator | aborted_blinding | aborted_provider
+    evaluator_deployment_id: Mapped[str | None] = mapped_column(String(120))
+    evaluator_canonical_model_id: Mapped[str | None] = mapped_column(String(200))
+    excluded_canonical_model_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    case_results: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    context_manifest: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    blinded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    score: Mapped[int | None] = mapped_column(Integer)
+    passed: Mapped[bool | None] = mapped_column(Boolean)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = _ts()

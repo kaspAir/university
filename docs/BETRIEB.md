@@ -160,6 +160,15 @@ Ohne gültige Abnahme antwortet `POST /api/v1/experiments` mit `CAPABILITY_UNSUP
 Der Entwicklungs-Host (Docker Desktop/WSL2, runc) ist **nicht** der Zielhost: dort ist die Probe erneut zu fahren, und die Isolationsklasse
 (runc, VM, gVisor) ist ein Betriebsentscheid. Sandboxtests mit echten Containern: `CAMPUS_TEST_SANDBOX=1 python -m pytest tests/sandbox`.
 
+## Pilotbetrieb (S5)
+
+Reihenfolge für einen Pilot (ADR-0014): 1) Betrieb importiert den JUnit-Bericht des freigegebenen Builds (`POST /api/v1/platform-evidence`,
+`reports/junit.xml` aus der CI, `build_sha` = Git-Commit). 2) Forschungsleitung registriert das Protokoll (`POST /api/v1/pilots`) und gibt es
+mit einer vorbehaltenen Entscheidung frei (`POST /api/v1/pilots/{id}/release`, `current_build_sha` setzen). Das Tor nennt jeden Fehlgrund.
+3) Armprojekte (`/arm-projects`) und Aufgaben (`/tasks`) je Bedingung; alle Mittel aus dem Pilotbudget. 4) Leitung oder Integrität bewertet
+(`/evaluations`); dafür muss ein drittes, für die Prüfrolle freigegebenes Modell im Katalog sein, das in keinem Arm arbeitet. 5) Bericht einsehen
+(`GET /report`), einfrieren (`POST /report`), über Artefakt-Freigabe und externe Freigabe menschlich entscheiden, Pilot abschliessen (`/close`).
+
 ## Was noch fehlt
 
 - Zwei echte freigegebene Modellzugänge (Betriebsentscheid, S1-Tor); bis dahin Leistungsebene `development_mock`.

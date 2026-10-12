@@ -17,7 +17,7 @@ unter `00_Basisdokumente/`, die Oberfläche ist in `design_handoff_phronesis_cam
 | `design_handoff_phronesis_campus_ui/` | UI-Handoff: Design System «Modernist», Ansichten, nicht verhandelbare UI-Regeln |
 | `CLAUDE.md` | Entwicklungsanweisung (Paketfassung plus Repo-Bezug) |
 
-## Stand: S0, S1 (mit Härtung S1.1), S2, S3 und S4 gebaut; offline geprüft, Sandbox lokal gemessen
+## Stand: S0 bis S5 gebaut; offline geprüft, Sandbox lokal gemessen, nichts live
 
 S0 = Verträge, Migrationen, echte lokale Anmeldung, Rollen, Policy, Audit/Outbox, Budget, Mock-Adapter.
 S1 = Provider-Adapter (Anthropic, OpenAI) hinter dem Gateway, Selector mit Kernprüfung, Neuplanung nach Ausfall,
@@ -32,6 +32,9 @@ kanonisch anderes, selbst qualifiziertes Prüfmodell, automatische Aktivierung o
 S4 = Sandbox-Controller mit gehärteten Docker-Läufen, Probe und menschlicher Abnahme je Runner/Image/Host, Experimente mit gemessenen
 Nachweisen (stdout ist Inhalt), Experimente als Belege nur wenn gemessen, Prüfmaterial im Tresor hinter eigener Datenbankrolle
 ([docs/S4_UMSETZUNG.md](docs/S4_UMSETZUNG.md)).
+S5 = Maschinerie des kontrollierten Piloten: vorregistriertes Protokoll mit Hash, Freigabetor nach Anhang F mit importiertem
+Plattform-Testnachweis, drei Bedingungen unter gemeinsamem Budget, verblindete unabhängige Bewertung durch ein Modell, das in keinem Arm
+eingesetzt war, Bericht aus Daten mit Unterschieden statt Mehrwertbehauptung, menschliche Freigabe ([docs/S5_UMSETZUNG.md](docs/S5_UMSETZUNG.md)).
 
 **Nichts davon ist live nachgewiesen**; die Sandbox-Härtung ist mit echten Containern auf dem Entwicklungs-Host gemessen, nicht auf einem
 Zielhost. Das Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid, siehe
@@ -48,7 +51,7 @@ packages/infrastructure/        SQLAlchemy-Modelle, Audit/Outbox, Budget-Sperren
 services/llm_gateway/           Gateway-Vertrag, Mock-Adapter, Anthropic- und OpenAI-Adapter, Endpunktbindung, Geheimnisauflösung
 services/sandbox_controller/    Sandbox-Controller: Job-/Ergebnisvertrag, Docker-Runner (gehärtet), Mock-Runner, Probe
 workers/research/               Temporal-Workflow und idempotente Aktivitäten (Quellen, Route, Erzeugung, Prüfung, Dossier)
-migrations/                     Alembic, Revisionen 0001 (eingefrorene S0-Basis) bis 0009 (Tresor, Sandbox)
+migrations/                     Alembic, Revisionen 0001 (eingefrorene S0-Basis) bis 0010 (Pilot)
 config/                         Vorlagen aus dem Paket, Provider deaktiviert
 tests/                          unit · integration (PostgreSQL) · adapter_contracts · security · sandbox (echte Container, opt-in)
 ```
@@ -66,6 +69,6 @@ set -a; source .env; set +a
 
 ## Noch offen
 
-Echte Modellzugänge (Live-Tor), Egress-Proxy, Sandbox-Abnahme auf dem Zielhost, Weboberfläche, Deploy, S5 (kontrollierter Pilot mit
-unabhängiger wissenschaftlicher Bewertung). Siehe Baufolge S1–S5 in der Architektur (Kap. 20) und die offenen Entscheide in
-[docs/S4_UMSETZUNG.md](docs/S4_UMSETZUNG.md) Abschnitt 5.
+Echte Modellzugänge (Live-Tor), Egress-Proxy, Sandbox-Abnahme auf dem Zielhost, Weboberfläche, Deploy, und der **erste echte Pilot** mit den
+Betriebsentscheiden aus Anhang F der Verfassung. Siehe [docs/S4_UMSETZUNG.md](docs/S4_UMSETZUNG.md) und
+[docs/S5_UMSETZUNG.md](docs/S5_UMSETZUNG.md), je Abschnitt 5.
