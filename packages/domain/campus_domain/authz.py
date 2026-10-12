@@ -39,6 +39,10 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "suite.read_cases": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER, Role.REVIEWER}),
     "evaluation.run": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),  # the campus may qualify autonomously (Art. 26)
     "registry.retire": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER, Role.PRODUCER}),
+    "sandbox.probe": frozenset({Role.OPERATOR, Role.RESEARCH_DIRECTOR}),  # measures the sandbox path on this host (chapter 13)
+    "sandbox.accept": frozenset({Role.RESEARCH_DIRECTOR}),  # accepting an isolation path is a protection decision (Art. 11)
+    "sandbox.revoke": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),
+    "experiment.run": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
     "budget.create_child": frozenset({Role.RESEARCH_DIRECTOR}),
     "project.create": frozenset({Role.RESEARCH_DIRECTOR}),
     "task.create": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),

@@ -21,9 +21,11 @@
               "type": "object",
               "properties": {
                 "passage_id": {"type": "string", "minLength": 1},
+                "experiment_run_id": {"type": "string", "minLength": 1},
                 "note": {"type": "string"}
               },
-              "required": ["passage_id", "note"],
+              "required": ["note"],
+              "oneOf": [{"required": ["passage_id"]}, {"required": ["experiment_run_id"]}],
               "additionalProperties": false
             }
           },

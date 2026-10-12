@@ -425,4 +425,4 @@ def test_audit_events_are_immutable_in_the_database(campus, session_factory):
 
 def test_readiness_reports_components(client, campus):
     r = client.get("/api/v1/ready")
-    assert r.status_code == 200 and r.json()["checks"] == {"database": "ok", "active_policy": "ok", "active_catalog": "ok"}
+    assert r.status_code == 200 and r.json()["checks"] == {"database": "ok", "active_policy": "ok", "active_catalog": "ok", "vault": "ok"}

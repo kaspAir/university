@@ -125,11 +125,47 @@ Verbindungsziel prüft (S4), gilt:
 3. Abgerufene Inhalte gelten als Daten, nie als Anweisung; sie werden isoliert extrahiert und nicht ausgeführt.
 4. Keine Zugangsdaten für interne Dienste auf den Hosts der Abrufprozesse, die nicht zwingend nötig sind.
 
+## Tresor für Prüfmaterial (S4)
+
+Die Fälle der Prüfsätze liegen im Schema `vault` hinter der Rolle `campus_vault` (ADR-0013). Neue Instanzen erhalten die Rolle aus
+`docker/postgres-init.sql`; bestehende Instanzen legen sie von Hand an, **bevor** Migration 0009 läuft (sonst vergibt die Migration keine Rechte):
+
+```bash
+docker exec campus-db psql -U postgres -c "CREATE ROLE campus_vault LOGIN PASSWORD 'campus_vault_dev'"
+```
+
+Dann `CAMPUS_VAULT_DATABASE_URL=postgresql+psycopg://campus_vault:…@…/campus` setzen. Ohne Tresor lassen sich Prüfsätze weder anlegen noch
+laufen (`CAPABILITY_UNSUPPORTED`); es gibt keinen Rückfall ins Anwendungsschema. Die Tresorrolle darf lesen und einfügen, nie ändern oder
+löschen; die Anwendungsrolle hat auf dem Schema kein Recht. `/ready` meldet den Tresor als Komponente.
+
+## Sandboxpfad (S4)
+
+Experimente laufen nur über den Sandbox-Controller (ADR-0012). Konfiguration:
+
+| Variable | Bedeutung |
+| --- | --- |
+| `CAMPUS_SANDBOX_RUNNER` | `none` (Fähigkeit abgeschaltet, Standard), `mock` (nur `development_mock`; führt nichts aus, Ergebnisse sind Fixtures), `docker` |
+| `CAMPUS_SANDBOX_IMAGE` | Pflicht für `docker`, **per Digest**: `python@sha256:…` (`docker inspect --format '{{index .RepoDigests 0}}' python:3.12-slim`) |
+| `CAMPUS_SANDBOX_WORKROOT` | Arbeitsverzeichnis für Ein-/Ausgaben je Lauf (wird je Lauf angelegt und gelöscht) |
+
+Abnahmeverfahren (einmal je Runner, Image **und Host**):
+
+1. Betrieb oder Forschungsleitung: `POST /api/v1/sandbox/probe` → Bericht mit 13 Prüfpunkten, Prüfsumme, Host-Fingerabdruck.
+2. Bericht lesen. Jeder Punkt nennt erwartet/beobachtet. Nur ein vollständig bestandener Bericht des Runners `docker` ist abnehmbar.
+3. Forschungsleitung: `POST /api/v1/sandbox/acceptances` mit dem unveränderten Bericht und einer Begründung. Die Abnahme bindet Runner,
+   Image-Digest und Host-Fingerabdruck; ein anderes Image oder ein anderer Daemon braucht eine neue Probe und Abnahme.
+4. `GET /api/v1/sandbox/status` zeigt `accepted: true`. Widerruf: `POST /api/v1/sandbox/acceptances/{id}/revoke` (Leitung, Integrität).
+
+Ohne gültige Abnahme antwortet `POST /api/v1/experiments` mit `CAPABILITY_UNSUPPORTED`; nichts wird ersatzweise im Prozess ausgeführt.
+Der Entwicklungs-Host (Docker Desktop/WSL2, runc) ist **nicht** der Zielhost: dort ist die Probe erneut zu fahren, und die Isolationsklasse
+(runc, VM, gVisor) ist ein Betriebsentscheid. Sandboxtests mit echten Containern: `CAMPUS_TEST_SANDBOX=1 python -m pytest tests/sandbox`.
+
 ## Was noch fehlt
 
 - Zwei echte freigegebene Modellzugänge (Betriebsentscheid, S1-Tor); bis dahin Leistungsebene `development_mock`.
-- Kein Temporal, keine Quellenaufnahme, keine Aussagen, keine Sandbox. Lauf und Prüfung sind synchrone Aufrufe
-  mit Journal und Kostenabrechnung; sie zeigen den Kontrollweg, nicht Forschung (S2 ff.).
+- Egress-Proxy (schliesst DNS-Rebinding) als Voraussetzung für `restricted_research`; `isolated_execution` zusätzlich mit abgenommenem
+  Sandboxpfad auf dem Zielhost.
+- Experimente laufen synchron im API-Prozess, nicht als Temporal-Aktivität; kein Abgleich-Lauf für hängende `running`-Einträge.
 - Keine Weboberfläche. Kein Deploy (Zielhost offen).
 
 ## Abhängigkeiten

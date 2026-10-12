@@ -11,12 +11,14 @@ pythonpath = [
   "packages/contracts",
   "packages/infrastructure",
   "services/llm_gateway",
+  "services/sandbox_controller",
   "workers/research",
   "apps/api",
 ]
 testpaths = ["tests"]
 markers = [
   "integration: needs a reachable PostgreSQL (CAMPUS_TEST_DATABASE_URL)",
+  "sandbox: runs real containers; needs Docker and CAMPUS_TEST_SANDBOX=1",
 ]
 filterwarnings = ["error::DeprecationWarning:campus_.*"]
 

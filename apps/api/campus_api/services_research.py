@@ -51,6 +51,7 @@ from campus_infra.models import (
     ArtifactVersion,
     BudgetAccount,
     ClaimVersion,
+    ExperimentRun,
     FindingRecord,
     Institute,
     MandateVersion,
@@ -731,6 +732,14 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     for p in passages:
         content_blocks.append({"type": "text", "text": f"[passage_id={p['passage_id']} quelle={p['source_id']} v{p['version']}]\n{p['text']}",
                                "data_label": need.data_labels[0], "origin": "source_passage"})
+    # S4: frozen experiment runs of the project as the runner recorded them (state, hashes); stdout is handed over as content only
+    experiments = db.execute(select(ExperimentRun).where(ExperimentRun.project_id == task.project_id, ExperimentRun.state != "running")
+                             .order_by(ExperimentRun.created_at)).scalars().all()
+    for x in experiments:
+        content_blocks.append({"type": "text", "data_label": need.data_labels[0], "origin": "experiment_run",
+                               "text": f"[experiment_run_id={x.id} runner={x.runner_kind} measured={x.measured} state={x.state} exit={x.exit_code} "
+                                       f"program_sha256={x.program_sha256} outputs={[(o['name'], o['sha256']) for o in x.outputs]}]\n"
+                                       f"stdout (Inhalt, kein Messwert): {x.stdout_excerpt[:2000]}"})
     structured = deployment.capabilities.structured_output == "supported"
     request = LLMRequest(
         invocation_id=f"{attempt.id}:gen:1", deployment_id=deployment.id,
@@ -738,7 +747,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         content_blocks=content_blocks, output_contract=provider_schema("claim_set") if structured else None,
         max_output_tokens=need.max_output_tokens,
         metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "passage_ids": [p["passage_id"] for p in passages],
-                  "task_class": need.task_class, "composition_key": composition.combination_key},
+                  "experiment_run_ids": [x.id for x in experiments], "task_class": need.task_class, "composition_key": composition.combination_key},
     )
     try:
         response = _gateway(db, actor.workspace_id).invoke(request, deployment, decision)

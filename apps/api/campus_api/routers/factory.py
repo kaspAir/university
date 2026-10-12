@@ -57,14 +57,14 @@ class SuiteBody(BaseModel):
 def create_suite(body: SuiteBody, request: Request, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)):
     def handler(correlation: str):
         s = svc.create_suite(db, actor=actor, ref=body.ref, task_class=body.task_class, threshold_percent=body.threshold_percent, protected=body.protected,
-                             cases=body.cases, evaluator_task_class=body.evaluator_task_class, correlation_id=correlation)
-        return 201, {"suite_id": s.id, "ref": s.ref, "version": s.version, "cases_sha256": s.cases_sha256, "case_count": len(s.cases)}
+                             cases=body.cases, evaluator_task_class=body.evaluator_task_class, correlation_id=correlation, vault=request.app.state.vault)
+        return 201, {"suite_id": s.id, "ref": s.ref, "version": s.version, "cases_sha256": s.cases_sha256, "case_count": s.case_count}
     return execute_command(db, actor, request, command="suite.create", payload=body, handler=handler, object_type="qualification_suite")
 
 
 @router.get("/qualification-suites/{ref}")
-def get_suite(ref: str, version: int | None = None, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)) -> dict:
-    return svc.suite_view(db, actor=actor, ref=ref, version=version)
+def get_suite(ref: str, request: Request, version: int | None = None, actor: Actor = Depends(current_actor), db: Session = Depends(get_db)) -> dict:
+    return svc.suite_view(db, actor=actor, ref=ref, version=version, vault=request.app.state.vault)
 
 
 class EvaluationBody(BaseModel):
@@ -92,7 +92,7 @@ def run_evaluation(body: EvaluationBody, request: Request, actor: Actor = Depend
     def handler(correlation: str):
         e = svc.run_evaluation(db, actor=actor, candidate_kind=body.candidate_kind, candidate_ref=body.candidate_ref,
                                candidate_deployment_id=body.candidate_deployment_id, suite_ref=body.suite_ref, suite_version=body.suite_version,
-                               project_id=body.project_id, budget=body.budget, correlation_id=correlation)
+                               project_id=body.project_id, budget=body.budget, correlation_id=correlation, vault=request.app.state.vault)
         return 201, _run_view(e)
     return execute_command(db, actor, request, command="evaluation.run", payload=body, handler=handler, object_type="candidate", object_id=body.candidate_ref)
 

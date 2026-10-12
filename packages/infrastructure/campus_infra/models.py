@@ -545,9 +545,10 @@ class EvidenceLink(Base):
     id: Mapped[str] = mapped_column(String(40), primary_key=True)
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
     claim_version_id: Mapped[str] = mapped_column(ForeignKey("claim_versions.id"), nullable=False)
-    kind: Mapped[str] = mapped_column(String(20), nullable=False)  # source_passage | own_run
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)  # source_passage | own_run | experiment_run
     source_passage_id: Mapped[str | None] = mapped_column(ForeignKey("source_passages.id"))
     run_attempt_id: Mapped[str | None] = mapped_column(ForeignKey("run_attempts.id"))
+    experiment_run_id: Mapped[str | None] = mapped_column(ForeignKey("experiment_runs.id"))  # S4: a measured, completed sandbox run
     note: Mapped[str] = mapped_column(Text, nullable=False)
 
 
@@ -651,7 +652,8 @@ class QualificationSuite(Base):
     evaluator_task_class: Mapped[str] = mapped_column(String(120), nullable=False, default="evaluation")
     threshold_percent: Mapped[int] = mapped_column(Integer, nullable=False)
     protected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    cases: Mapped[list] = mapped_column(JSONB, nullable=False)
+    # the cases themselves live in the vault (schema `vault`, own role, S4); the application schema keeps hash and count only
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cases_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = _ts()
@@ -700,4 +702,55 @@ class RetirementRecord(Base):
     successor_ref: Mapped[str | None] = mapped_column(String(120))
     new_status: Mapped[str] = mapped_column(String(20), nullable=False)  # dormant | archived
     decided_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class SandboxAcceptance(Base):
+    """Human acceptance of ONE sandbox path: runner kind, image digest and host, on the strength of a passed probe (chapter 13, [T7])."""
+
+    __tablename__ = "sandbox_acceptances"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    runner_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    image: Mapped[str] = mapped_column(String(300), nullable=False)
+    host_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    probe_report: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    probe_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    accepted_by: Mapped[str] = mapped_column(String(40), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by: Mapped[str | None] = mapped_column(String(40))
+    revoke_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _ts()
+
+
+class ExperimentRun(Base):
+    """One run of untrusted code in the sandbox. Everything measured comes from the trusted runner; stdout is content (chapter 13, T04)."""
+
+    __tablename__ = "experiment_runs"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False)
+    acceptance_id: Mapped[str | None] = mapped_column(ForeignKey("sandbox_acceptances.id"))
+    runner_kind: Mapped[str] = mapped_column(String(20), nullable=False)  # docker (measures) | mock (fixture)
+    image: Mapped[str] = mapped_column(String(300), nullable=False)
+    host_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    program_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    argv: Mapped[list] = mapped_column(JSONB, nullable=False)
+    input_manifest: Mapped[list] = mapped_column(JSONB, nullable=False)
+    input_manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    limits: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    state: Mapped[str] = mapped_column(String(30), nullable=False)  # running | completed | failed | timed_out | oom_killed | output_limit_exceeded | runner_unavailable
+    measured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    exit_code: Mapped[int | None] = mapped_column(Integer)
+    timed_out: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    oom_killed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stdout_excerpt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    stderr_excerpt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    outputs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    notes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_by: Mapped[str] = mapped_column(String(40), nullable=False)
     created_at: Mapped[datetime] = _ts()

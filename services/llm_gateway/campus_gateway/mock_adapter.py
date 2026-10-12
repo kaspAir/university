@@ -80,6 +80,9 @@ class MockAdapter:
                        "depends_on": []} for i, pid in enumerate(passage_ids[:3])]
             claims.append({"local_id": "m1", "statement": "Synthetischer Messwert ohne Lauf: 42 Prozent.", "kind": "computation",
                            "validity_conditions": "keine", "evidence": [], "depends_on": [c["local_id"] for c in claims[:1]]})
+            for i, xid in enumerate(request.metadata.get("experiment_run_ids") or []):  # S4: computations citing frozen experiment runs
+                claims.append({"local_id": f"x{i + 1}", "statement": f"Synthetischer Messwert aus Experiment {xid}.", "kind": "computation",
+                               "validity_conditions": "Nur für diesen Lauf.", "evidence": [{"experiment_run_id": xid, "note": "Mock"}], "depends_on": []})
             return {"claims": claims, "open_questions": ["Mock: offene Frage"], "omissions": ["Mock: nichts Weiteres untersucht"]}
         if "false_alarm_risk" in props:  # evaluation_verdict: the case fails when its input carries the marker FAIL
             text_in = " ".join(str(b.get("text", "")) for b in request.content_blocks)

@@ -42,6 +42,7 @@ from campus_infra.models import (
     Task,
     Workspace,
 )
+from campus_infra.vault import CaseVault
 
 from . import services_research
 from .services_research import _gateway, _loaded_policy_and_catalog, _pricing, _settle_after_failure, _settle_from_usage, load_composition
@@ -97,10 +98,20 @@ def need_by_ref(db: Session, workspace_id: str, ref: str) -> NeedRecord | None:
 
 # ---------------------------------------------------------------- suites
 
+def _vault_or_unsupported(vault: CaseVault | None) -> CaseVault:
+    if vault is None:
+        raise CampusError(ErrorCode.CAPABILITY_UNSUPPORTED, "Kein Tresor für Prüfmaterial konfiguriert (CAMPUS_VAULT_DATABASE_URL); Prüfsätze können "
+                          "weder angelegt noch gelesen werden", blocked_action="suite.create",
+                          required_resolution="Tresor-Verbindung mit der Rolle campus_vault setzen (docs/BETRIEB.md)")
+    return vault
+
+
 def create_suite(db: Session, *, actor: Actor, ref: str, task_class: str, threshold_percent: int, protected: bool, cases: list[dict],
-                 evaluator_task_class: str, correlation_id: str) -> QualificationSuite:
-    """Fixed test material. A changed criterion is a new version; the old one and its runs remain (T10)."""
+                 evaluator_task_class: str, correlation_id: str, vault: CaseVault | None) -> QualificationSuite:
+    """Fixed test material. A changed criterion is a new version; the old one and its runs remain (T10). The cases go into the vault
+    (own schema, own role); the application schema keeps hash and count (S4)."""
     authorize("suite.create", actor.roles)
+    store = _vault_or_unsupported(vault)
     if not 0 <= threshold_percent <= 100:
         raise CampusError(ErrorCode.VALIDATION_ERROR, "threshold_percent muss zwischen 0 und 100 liegen")
     ids = [c.get("case_id") for c in cases]
@@ -110,18 +121,21 @@ def create_suite(db: Session, *, actor: Actor, ref: str, task_class: str, thresh
                       .order_by(QualificationSuite.version.desc())).scalars().first()
     row = QualificationSuite(id=new_id("QS"), workspace_id=actor.workspace_id, ref=ref, version=(last.version + 1) if last else 1,
                              task_class=task_class, evaluator_task_class=evaluator_task_class, threshold_percent=threshold_percent,
-                             protected=protected, cases=cases, cases_sha256=_sha(json.dumps(cases, sort_keys=True, ensure_ascii=False)),
+                             protected=protected, case_count=len(cases), cases_sha256=_sha(json.dumps(cases, sort_keys=True, ensure_ascii=False)),
                              created_by=actor.actor_id)
     db.add(row)
     db.flush()
+    db.commit()  # the suite row must exist before the vault row references it (separate connection, separate role)
+    store.put(row.id, actor.workspace_id, cases, row.cases_sha256)
     record(db, actor=actor, command="suite.create", object_type="qualification_suite", object_id=ref, object_version=str(row.version),
            correlation_id=correlation_id, payload={"task_class": task_class, "threshold_percent": threshold_percent, "protected": protected,
                                                    "cases": len(cases), "cases_sha256": row.cases_sha256})  # never the cases themselves
     return row
 
 
-def suite_view(db: Session, *, actor: Actor, ref: str, version: int | None) -> dict:
-    """Protected suites show their cases only to roles allowed to read them (T05); everyone sees existence, hash and threshold."""
+def suite_view(db: Session, *, actor: Actor, ref: str, version: int | None, vault: CaseVault | None) -> dict:
+    """Protected suites show their cases only to roles allowed to read them (T05); everyone sees existence, hash and threshold.
+    The cases are read from the vault only when the caller may see them; nobody else triggers a vault read."""
     stmt = select(QualificationSuite).where(QualificationSuite.workspace_id == actor.workspace_id, QualificationSuite.ref == ref)
     stmt = stmt.where(QualificationSuite.version == version) if version else stmt.order_by(QualificationSuite.version.desc())
     row = db.execute(stmt).scalars().first()
@@ -129,8 +143,8 @@ def suite_view(db: Session, *, actor: Actor, ref: str, version: int | None) -> d
         raise CampusError(ErrorCode.NOT_FOUND, "Prüfsatz nicht gefunden")
     may_read = bool(set(actor.roles) & COMMAND_ROLES["suite.read_cases"]) or not row.protected
     return {"suite_id": row.id, "ref": row.ref, "version": row.version, "task_class": row.task_class, "evaluator_task_class": row.evaluator_task_class,
-            "threshold_percent": row.threshold_percent, "protected": row.protected, "cases_sha256": row.cases_sha256, "case_count": len(row.cases),
-            "cases": row.cases if may_read else None, "cases_visible": may_read, "created_at": row.created_at}
+            "threshold_percent": row.threshold_percent, "protected": row.protected, "cases_sha256": row.cases_sha256, "case_count": row.case_count,
+            "cases": _vault_or_unsupported(vault).get(row.id) if may_read else None, "cases_visible": may_read, "created_at": row.created_at}
 
 
 def _latest_suite(db: Session, workspace_id: str, ref: str, version: int | None) -> QualificationSuite:
@@ -179,7 +193,7 @@ def _baseline(db: Session, workspace_id: str, candidate_kind: str, logical_id: s
 
 
 def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_ref: str, candidate_deployment_id: str, suite_ref: str,
-                   suite_version: int | None, project_id: str, budget: str | None, correlation_id: str) -> EvaluationRun:
+                   suite_version: int | None, project_id: str, budget: str | None, correlation_id: str, vault: CaseVault | None) -> EvaluationRun:
     """Chapter 7: evaluate a candidate (profile or skill) with one deployment on fixed material, judged per case by a canonically different,
     itself qualified evaluator; aggregate; compare with the active version; activate automatically when allowed."""
     authorize("evaluation.run", actor.roles)
@@ -189,6 +203,10 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     ws = db.get(Workspace, actor.workspace_id)
     mandate = db.get(MandateVersion, project.mandate_version_id)
     suite = _latest_suite(db, actor.workspace_id, suite_ref, suite_version)
+    cases = _vault_or_unsupported(vault).get(suite.id)
+    if cases is None or _sha(json.dumps(cases, sort_keys=True, ensure_ascii=False)) != suite.cases_sha256:
+        raise CampusError(ErrorCode.VALIDATION_ERROR, "Prüfmaterial im Tresor fehlt oder stimmt nicht mit dem registrierten Hash überein; kein Lauf",
+                          blocked_action="evaluation.run")
     if candidate_kind == "agent":
         candidate = services_research.find_agent(db, actor.workspace_id, candidate_ref)
         logical_id = candidate.profile_id if candidate else None
@@ -254,7 +272,7 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     record(db, actor=actor, command="evaluation.run", object_type="evaluation_run", object_id=run.id, object_version=None, correlation_id=correlation_id,
            project_id=project.id, event_type="EvaluationStarted",
            payload={"candidate_ref": candidate_ref, "candidate_deployment_id": cand_dep.id, "evaluator_deployment_id": eval_dep.id,
-                    "suite": f"{suite.ref}@{suite.version}", "cases": len(suite.cases)})
+                    "suite": f"{suite.ref}@{suite.version}", "cases": suite.case_count})
     db.commit()
     cand_pricing = _pricing(db, actor.workspace_id, cand_dep.pricing_ref)
     eval_pricing = _pricing(db, actor.workspace_id, eval_dep.pricing_ref)
@@ -262,7 +280,7 @@ def run_evaluation(db: Session, *, actor: Actor, candidate_kind: str, candidate_
     results: list[CaseResult] = []
     manifest: list[dict] = []
     try:
-        for case in suite.cases:
+        for case in cases:
             decision_id = new_id("RD")
             gen_res = budget_service.reserve(db, account_id=task.budget_account_id,
                                              amount=estimate_cost(cand_pricing, need.context_tokens_estimate, need.max_output_tokens),

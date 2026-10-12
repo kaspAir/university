@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import uuid
+from pathlib import Path
 
 import pytest
 from alembic import command
@@ -39,6 +41,12 @@ def database_url() -> str:
     os.environ["CAMPUS_DATABASE_URL"] = TEST_URL
     os.environ.setdefault("CAMPUS_CAPABILITY_LEVEL", "development_mock")
     os.environ["CAMPUS_COOKIE_SECURE"] = "false"
+    # S4: the vault uses its own connection; in tests the owner URL stands in unless a vault URL is given. The mock runner executes nothing.
+    os.environ.setdefault("CAMPUS_VAULT_DATABASE_URL", os.environ.get("CAMPUS_TEST_VAULT_DATABASE_URL", TEST_URL))
+    os.environ.setdefault("CAMPUS_SANDBOX_RUNNER", "mock")
+    scratch = Path(tempfile.mkdtemp(prefix="campus-test-"))
+    os.environ.setdefault("CAMPUS_BLOB_ROOT", str(scratch / "blobs"))
+    os.environ.setdefault("CAMPUS_SANDBOX_WORKROOT", str(scratch / "sandbox"))
     cfg = Config(str(REPO / "alembic.ini"))
     cfg.set_main_option("script_location", str(REPO / "migrations"))
     command.downgrade(cfg, "base")

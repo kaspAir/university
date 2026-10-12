@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from campus_contracts.models import ClaimSet
 from campus_domain.claims import classify
 from campus_domain.errors import CampusError, ErrorCode
+from campus_domain.experiments import evidence_valid
 from campus_infra.audit import Actor, record
 from campus_infra.ids import new_id
 from campus_infra.models import (
@@ -14,6 +15,7 @@ from campus_infra.models import (
     ClaimVersion,
     DependencyEdge,
     EvidenceLink,
+    ExperimentRun,
     Project,
     RunAttempt,
     Source,
@@ -54,12 +56,20 @@ def record_claim_set(db: Session, *, actor: Actor, task: Task, attempt: RunAttem
     """Store what the run declared, classified by the core: observations and computations without real evidence become
     flagged hypotheses (T04); invented passage ids are flagged; dependencies become edges."""
     allowed = project_passage_ids(db, task.project_id)
+    experiments = {x.id: x for x in db.execute(select(ExperimentRun).where(ExperimentRun.project_id == task.project_id)).scalars().all()}
     assessment_ref = f"run:{attempt.id}"
     created: dict[str, ClaimVersion] = {}
     for item in claim_set.claims:
-        valid = [e for e in item.evidence if e.passage_id in allowed]
-        invalid = [e for e in item.evidence if e.passage_id not in allowed]
-        cls = classify(item.kind, len(valid), len(invalid))
+        passages = [e for e in item.evidence if e.passage_id is not None]
+        runs = [e for e in item.evidence if e.experiment_run_id is not None]
+        valid = [e for e in passages if e.passage_id in allowed]
+        invalid = [e for e in passages if e.passage_id not in allowed]
+        # S4: an experiment supports a computation only if a real runner measured a completed run; a mock or failed run is content
+        valid_runs = [e for e in runs if e.experiment_run_id in experiments
+                      and evidence_valid(measured=experiments[e.experiment_run_id].measured, state=experiments[e.experiment_run_id].state)]
+        unmeasured_runs = [e for e in runs if e.experiment_run_id in experiments and e not in valid_runs]
+        invalid += [e for e in runs if e.experiment_run_id not in experiments]
+        cls = classify(item.kind, len(valid) + len(valid_runs), len(invalid), len(unmeasured_runs))
         claim = ClaimVersion(
             id=new_id("C"), workspace_id=actor.workspace_id, project_id=task.project_id, task_id=task.id, run_attempt_id=attempt.id,
             artifact_version_id=artifact.id, claim_id=new_id("CL"), version=1, local_id=item.local_id, statement=item.statement,
@@ -72,12 +82,16 @@ def record_claim_set(db: Session, *, actor: Actor, task: Task, attempt: RunAttem
         for e in valid:
             db.add(EvidenceLink(id=new_id("EV"), workspace_id=actor.workspace_id, claim_version_id=claim.id, kind="source_passage",
                                 source_passage_id=e.passage_id, note=e.note))
+        for e in valid_runs:
+            db.add(EvidenceLink(id=new_id("EV"), workspace_id=actor.workspace_id, claim_version_id=claim.id, kind="experiment_run",
+                                experiment_run_id=e.experiment_run_id, note=e.note))
         created[item.local_id] = claim
         if cls.flags:
             record(db, actor=actor, command="claim.record", object_type="claim", object_id=claim.id, object_version="1",
                    correlation_id=correlation_id, policy_decision="allowed", project_id=task.project_id, event_type="ClaimFlagged",
                    payload={"flags": list(cls.flags), "declared_kind": cls.declared_kind, "stored_kind": cls.stored_kind,
-                            "invalid_passage_ids": [e.passage_id for e in invalid]})
+                            "invalid_evidence_refs": [e.passage_id or e.experiment_run_id for e in invalid],
+                            "unmeasured_experiment_run_ids": [e.experiment_run_id for e in unmeasured_runs]})
     for item in claim_set.claims:
         for dep in item.depends_on:
             if dep in created and dep != item.local_id:
@@ -110,7 +124,8 @@ def project_claims(db: Session, *, actor: Actor, project_id: str, include_graph:
                     "assessment_ref": c.assessment_ref, "validity_conditions": c.validity_conditions, "flags": c.flags,
                     "reassessment_required": c.reassessment_required, "run_attempt_id": c.run_attempt_id,
                     "producer_canonical_model_id": c.producer_canonical_model_id,
-                    "evidence": [{"kind": e.kind, "source_passage_id": e.source_passage_id, "run_attempt_id": e.run_attempt_id, "note": e.note}
+                    "evidence": [{"kind": e.kind, "source_passage_id": e.source_passage_id, "run_attempt_id": e.run_attempt_id,
+                                  "experiment_run_id": e.experiment_run_id, "note": e.note}
                                  for e in evidence if e.claim_version_id == c.id]} for c in claims],
         "edges": [{"from": e.from_claim_version_id, "to": e.to_claim_version_id, "relation": e.relation} for e in edges],
     }

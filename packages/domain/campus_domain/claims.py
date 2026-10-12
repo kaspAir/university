@@ -25,13 +25,16 @@ class Classification:
     flags: tuple[str, ...]
 
 
-def classify(declared_kind: str, valid_evidence_count: int, invalid_evidence_count: int) -> Classification:
+def classify(declared_kind: str, valid_evidence_count: int, invalid_evidence_count: int, unmeasured_evidence_count: int = 0) -> Classification:
     """T04: a measurement or observation without a real evidence link is stored as a hypothesis and flagged, never as
-    observed. Invalid evidence references (invented passage ids) are flagged as well."""
+    observed. Invalid evidence references (invented passage ids) are flagged as well. Evidence from an experiment that was not
+    measured (mock runner) or did not complete within its limits is flagged EVIDENCE_NOT_MEASURED and never counts as evidence."""
     flags: list[str] = []
     stored_kind = declared_kind
     if invalid_evidence_count:
         flags.append("INVALID_EVIDENCE_REF")
+    if unmeasured_evidence_count:
+        flags.append("EVIDENCE_NOT_MEASURED")
     if declared_kind in KINDS_REQUIRING_EVIDENCE and valid_evidence_count == 0:
         flags.append("EVIDENCE_MISSING")
         stored_kind = "hypothesis"

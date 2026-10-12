@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Support = Literal["supported", "unsupported", "unknown"]
 DataLabel = Literal["public", "internal", "confidential", "personal"]
@@ -187,8 +187,17 @@ ClaimKind = Literal["observation", "computation", "derivation", "hypothesis", "l
 
 
 class EvidenceRef(_Strict):
-    passage_id: str = Field(min_length=1)
+    """Exactly one of: a source passage the run was given, or an experiment run of the project (S4)."""
+
+    passage_id: str | None = Field(default=None, min_length=1)
+    experiment_run_id: str | None = Field(default=None, min_length=1)
     note: str
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> EvidenceRef:
+        if (self.passage_id is None) == (self.experiment_run_id is None):
+            raise ValueError("Beleg verweist entweder auf passage_id oder auf experiment_run_id")
+        return self
 
 
 class ClaimItem(_Strict):

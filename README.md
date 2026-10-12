@@ -17,7 +17,7 @@ unter `00_Basisdokumente/`, die Oberfläche ist in `design_handoff_phronesis_cam
 | `design_handoff_phronesis_campus_ui/` | UI-Handoff: Design System «Modernist», Ansichten, nicht verhandelbare UI-Regeln |
 | `CLAUDE.md` | Entwicklungsanweisung (Paketfassung plus Repo-Bezug) |
 
-## Stand: S0, S1 (mit Härtung S1.1), S2 und S3 gebaut, offline geprüft
+## Stand: S0, S1 (mit Härtung S1.1), S2, S3 und S4 gebaut; offline geprüft, Sandbox lokal gemessen
 
 S0 = Verträge, Migrationen, echte lokale Anmeldung, Rollen, Policy, Audit/Outbox, Budget, Mock-Adapter.
 S1 = Provider-Adapter (Anthropic, OpenAI) hinter dem Gateway, Selector mit Kernprüfung, Neuplanung nach Ausfall,
@@ -29,8 +29,12 @@ Rückzug mit Neubewertung, Dossier mit hashgebundener Freigabe, dauerhafter Abla
 S3 = Fabrik: Bedarfsnachweis, Kandidaten mit begrenzten Rechten, geschütztes versioniertes Prüfmaterial, unabhängige Qualifikation durch
 kanonisch anderes, selbst qualifiziertes Prüfmodell, automatische Aktivierung ohne Rückschritt, Herkunftsansicht, Stilllegung
 ([docs/S3_UMSETZUNG.md](docs/S3_UMSETZUNG.md)).
+S4 = Sandbox-Controller mit gehärteten Docker-Läufen, Probe und menschlicher Abnahme je Runner/Image/Host, Experimente mit gemessenen
+Nachweisen (stdout ist Inhalt), Experimente als Belege nur wenn gemessen, Prüfmaterial im Tresor hinter eigener Datenbankrolle
+([docs/S4_UMSETZUNG.md](docs/S4_UMSETZUNG.md)).
 
-**Nichts davon ist live nachgewiesen.** Das Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid, siehe
+**Nichts davon ist live nachgewiesen**; die Sandbox-Härtung ist mit echten Containern auf dem Entwicklungs-Host gemessen, nicht auf einem
+Zielhost. Das Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid, siehe
 [docs/S1_UMSETZUNG.md](docs/S1_UMSETZUNG.md) Abschnitt 3. Befunde und Abnahmepunkte: [docs/S2_UMSETZUNG.md](docs/S2_UMSETZUNG.md).
 
 Vorschlag S0: [docs/S0_VORSCHLAG.md](docs/S0_VORSCHLAG.md) · Betrieb: [docs/BETRIEB.md](docs/BETRIEB.md) ·
@@ -42,10 +46,11 @@ packages/domain/campus_domain/  Fachregeln ohne Framework: Statusachsen, Geld, R
 packages/contracts/             Sechs JSON-Schemas des Pakets + typisierte Modelle + Routing-Policy
 packages/infrastructure/        SQLAlchemy-Modelle, Audit/Outbox, Budget-Sperren, Aufrufjournal, Blob-Store
 services/llm_gateway/           Gateway-Vertrag, Mock-Adapter, Anthropic- und OpenAI-Adapter, Endpunktbindung, Geheimnisauflösung
+services/sandbox_controller/    Sandbox-Controller: Job-/Ergebnisvertrag, Docker-Runner (gehärtet), Mock-Runner, Probe
 workers/research/               Temporal-Workflow und idempotente Aktivitäten (Quellen, Route, Erzeugung, Prüfung, Dossier)
-migrations/                     Alembic, Revisionen 0001 (eingefrorene S0-Basis) bis 0004
+migrations/                     Alembic, Revisionen 0001 (eingefrorene S0-Basis) bis 0009 (Tresor, Sandbox)
 config/                         Vorlagen aus dem Paket, Provider deaktiviert
-tests/                          unit · integration (PostgreSQL) · adapter_contracts · security
+tests/                          unit · integration (PostgreSQL) · adapter_contracts · security · sandbox (echte Container, opt-in)
 ```
 
 Kurzstart (Details in `docs/BETRIEB.md`):
@@ -59,7 +64,8 @@ set -a; source .env; set +a
 .venv/Scripts/python -m pytest -q
 ```
 
-## Nicht Teil von S0
+## Noch offen
 
-Echte Modellzugänge, Temporal, Quellenabruf, Aussagen und Dossier, Fabrik und Qualifikation, Sandbox,
-Weboberfläche, Deploy. Siehe Baufolge S1–S5 in der Architektur (Kap. 20) und die Lücken L1–L4 im S0-Vorschlag.
+Echte Modellzugänge (Live-Tor), Egress-Proxy, Sandbox-Abnahme auf dem Zielhost, Weboberfläche, Deploy, S5 (kontrollierter Pilot mit
+unabhängiger wissenschaftlicher Bewertung). Siehe Baufolge S1–S5 in der Architektur (Kap. 20) und die offenen Entscheide in
+[docs/S4_UMSETZUNG.md](docs/S4_UMSETZUNG.md) Abschnitt 5.
