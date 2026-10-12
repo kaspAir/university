@@ -65,7 +65,13 @@ End-to-End-Test über HTTPS (Anmeldung, Seiten, ein Command mit CSRF und Idempot
 Installiert und über `https://university.kaspair.ch` geprüft: Anmeldung, alle sieben Ansichten, CSRF-Durchsetzung (403 ohne Token), ein Command
 mit Token und Idempotency-Key über den Proxy, Abmeldung, Schutz ohne Sitzung. Dienste binden nur an 127.0.0.1, PostgreSQL ohne TCP.
 Workspace `ws-campus`, Konto der Forschungsleitung, Pilot-Policy `pilot-policy-1`, Mock-Katalog `pilot-mock-1`, ein Mandatsentwurf.
-Crontab ergänzt, Backup und Wiederherstellungsprüfung manuell bestanden. Build `1d14106`.
+Crontab ergänzt, Backup und Wiederherstellungsprüfung manuell bestanden. Erster Deploy mit `deploy.sh` von Hand auf Build `f5a9953`
+(Backup vor Deploy, Checkout, Abhängigkeiten, Migrationen, Neustart, Gesundheit mit Build-Hash über HTTPS bestätigt).
+
+Zwei Mängel, die der erste Deploy-Test aufdeckte und die behoben sind: (1) `install.sh` hatte Ausführungsrechte gesetzt, die git als Änderung
+zählte und den Checkout blockierte; jetzt sind die Rechte im Repository gespeichert und der Server-Klon ignoriert Dateimodi. (2) Gestartete
+Dienste erbten den Sperr-Deskriptor von Keepalive/Deploy und hielten die Sperre dauerhaft; jetzt schliesst der Start jeden Kindprozess davon
+aus, und `deploy.sh` meldet nur Erfolg, wenn HEAD, Build-Hash der laufenden API und Worker übereinstimmen.
 
 ## Prüfen im Betrieb
 

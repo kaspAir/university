@@ -1,6 +1,7 @@
 #!/bin/bash
 # Control of the userland pilot environment: PostgreSQL (socket only), Temporal dev server (127.0.0.1), API (127.0.0.1), worker.
 # Usage: campusctl.sh {start|stop|restart|status|health} [pg|temporal|api|worker|all]
+# Started processes never inherit fd 9 (the flock of keepalive/deploy); otherwise a running API would hold the lock forever.
 # All state lives below $CAMPUS_DATA; nothing is public: PostgreSQL has no TCP listener, Temporal and the API bind to 127.0.0.1.
 set -u
 ENV_FILE="${CAMPUS_ENV_FILE:-$HOME/campus-data/secrets/campus.env}"
@@ -40,7 +41,7 @@ start_temporal() {
   stop_pid "$RUN/temporal.pid" temporal
   mkdir -p "$CAMPUS_DATA/temporal"
   nohup "$TEMPORAL_BIN" server start-dev --ip 127.0.0.1 --port "${CAMPUS_TEMPORAL_ADDRESS##*:}" --headless \
-    --db-filename "$CAMPUS_DATA/temporal/temporal.db" --namespace "$CAMPUS_TEMPORAL_NAMESPACE" --log-level warn >> "$LOGS/temporal.log" 2>&1 &
+    --db-filename "$CAMPUS_DATA/temporal/temporal.db" --namespace "$CAMPUS_TEMPORAL_NAMESPACE" --log-level warn >> "$LOGS/temporal.log" 2>&1 9>&- &
   echo $! > "$RUN/temporal.pid"
   for _ in $(seq 1 30); do health_temporal && { log "temporal gestartet (pid $(cat "$RUN/temporal.pid"))"; return 0; }; sleep 1; done
   log "temporal: nicht gesund nach 30 s"; return 1
@@ -56,7 +57,7 @@ start_api() {
   stop_pid "$RUN/api.pid" api
   cd "$CAMPUS_HOME" || return 1
   nohup "$VENV/bin/python" -m uvicorn campus_api.main:app --host 127.0.0.1 --port "$CAMPUS_API_PORT" --workers 2 \
-    --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header --log-level warning >> "$LOGS/api.log" 2>&1 &
+    --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header --log-level warning >> "$LOGS/api.log" 2>&1 9>&- &
   echo $! > "$RUN/api.pid"
   for _ in $(seq 1 30); do health_api && { log "api gestartet (pid $(cat "$RUN/api.pid"))"; return 0; }; sleep 1; done
   log "api: nicht bereit nach 30 s"; return 1
@@ -69,7 +70,7 @@ start_worker() {
   health_worker && return 0
   rm -f "$RUN/worker.pid"
   cd "$CAMPUS_HOME" || return 1
-  nohup "$VENV/bin/python" -m campus_workers.worker >> "$LOGS/worker.log" 2>&1 &
+  nohup "$VENV/bin/python" -m campus_workers.worker >> "$LOGS/worker.log" 2>&1 9>&- &
   echo $! > "$RUN/worker.pid"
   sleep 2; health_worker && { log "worker gestartet (pid $(cat "$RUN/worker.pid"))"; return 0; }
   log "worker: sofort beendet, siehe logs/worker.log"; return 1

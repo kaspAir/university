@@ -32,7 +32,7 @@ fi
 
 echo "== Repository $CAMPUS_HOME ($BRANCH)"
 if [ ! -d "$CAMPUS_HOME/.git" ]; then git clone -q --branch "$BRANCH" "$REPO_URL" "$CAMPUS_HOME"; fi
-cd "$CAMPUS_HOME" && git fetch -q origin && git checkout -q --detach "origin/$BRANCH"
+cd "$CAMPUS_HOME" && git config core.fileMode false && git fetch -q origin && git checkout -q --detach "origin/$BRANCH"
 SHA="$(git rev-parse HEAD)"
 
 echo "== Virtualenv"
@@ -105,5 +105,4 @@ echo "== Schema"
 "$PY" -m alembic upgrade head 2>&1 | grep -v "^INFO" || true
 "$PY" -m alembic current 2>&1 | tail -1
 echo "$SHA" > "$CAMPUS_DATA/run/deployed.sha"
-chmod +x "$CAMPUS_HOME"/ops/server/*.sh
 echo "== fertig. Start: bash $CAMPUS_HOME/ops/server/campusctl.sh start"

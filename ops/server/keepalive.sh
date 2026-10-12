@@ -17,5 +17,5 @@ for comp in pg temporal api worker; do
   fi
 done
 # keep the log bounded (last 5000 lines)
-[ "$(wc -l < "$LOG" 2>/dev/null || echo 0)" -gt 6000 ] && tail -n 5000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+if [ -f "$LOG" ] && [ "$(wc -l < "$LOG")" -gt 6000 ]; then tail -n 5000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; fi
 exit 0

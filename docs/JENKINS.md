@@ -46,7 +46,7 @@ Jenkins-Image enthalten ist (`Dockerfile.jenkins`).
 | ID | Art | Zweck | Stand |
 | --- | --- | --- | --- |
 | `github-kaspair` | Username + Token | Checkout, falls das Repo privat ist | nur nötig bei privatem Repo |
-| `university-deploy` | SSH Username with private key | Deploy auf den Zielhost | **erst nach Host-Entscheid** |
+| `university-deploy` | SSH Username with private key (Benutzer `u7031y_kaspar`, Schlüssel `~/.ssh/university_deploy` der Entwicklungsmaschine) | Deploy auf university.kaspair.ch (ADR-0015) | **nötig**; die Deploy-Stage nutzt `withCredentials` aus credentials-binding, kein SSH-Agent-Plugin |
 
 Der Deploy-Key des HERMES-PIA-Jenkins (`hermespia-deploy`) liegt nur im Volume dieser anderen
 Instanz und auf dem Server, nicht lokal. Wenn der Campus auf denselben Host soll, denselben Key
@@ -117,3 +117,10 @@ docker compose -f docker-compose.jenkins.yml down               # Stopp, Daten b
   angepasste Betriebsform. Erst danach lässt sich die Deploy-Stage bauen.
 - **Entwicklungspaket.** Die Architektur verweist auf CLAUDE.md, JSON-Schemas, `diagrams/*.mmd`,
   Abnahmespezifikation und `validate_contracts.py`. Diese Dateien liegen noch nicht im Repo.
+
+## Deploy (Stand 12.10.2026)
+
+Der Job baut `*/main`. Die Stage «Deploy» läuft nur für den Branch `main` und ruft per SSH `~/campus/ops/server/deploy.sh <commit>` auf dem
+Host (Backup, Checkout, Abhängigkeiten, Migrationen, Neustart, Gesundheit mit Build-Hash; Code-Rollback bei Fehlern). Erfolgskriterium
+in Jenkins: `https://university.kaspair.ch/api/v1/health` meldet den gebauten Commit als `build_sha`. Der private Schlüssel kommt aus dem
+Credential `university-deploy` (credentials-binding maskiert ihn im Log); er steht nirgends im Repository.
