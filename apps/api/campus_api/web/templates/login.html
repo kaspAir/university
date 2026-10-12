@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anmelden · Phronesis-Campus</title>
+<link rel="stylesheet" href="/campus/static/tokens.css"><link rel="stylesheet" href="/campus/static/campus.css">
+</head>
+<body>
+<div class="login">
+  <div class="brand" style="padding-left:0">PHRONESIS<span class="dot">.</span></div>
+  <p class="meta" style="margin-top:12px">Forschungscampus · Leistungsebene {{ capability_level }}</p>
+  {% if error %}<div class="error-block"><code>UNAUTHENTICATED</code> {{ error }}</div>{% endif %}
+  <form method="post" action="/campus/login">
+    {% if workspaces|length == 1 %}
+      <input type="hidden" name="workspace_id" value="{{ workspaces[0].id }}">
+    {% else %}
+      <label for="workspace_id">Workspace</label>
+      <select class="input" id="workspace_id" name="workspace_id">{% for w in workspaces %}<option value="{{ w.id }}">{{ w.name }} ({{ w.id }})</option>{% endfor %}</select>
+    {% endif %}
+    <label for="username">Benutzername</label><input class="input" id="username" name="username" value="{{ username }}" autocomplete="username" required>
+    <label for="password">Passwort</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+    <button class="btn btn-primary" type="submit">Anmelden</button>
+  </form>
+</div>
+</body>
+</html>

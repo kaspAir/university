@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Register · Phronesis{% endblock %}
+{% block h1 %}Register{% endblock %}
+{% block content %}
+<div class="meta" style="margin-top:8px">Betriebsstand und Qualifikationsstand sind getrennte Achsen; aus Konfigurations- und Laufdaten, ohne Sprachmodell (A09).</div>
+<div class="label">Agentenprofile</div>
+{% if inventory.agents %}<div class="tablewrap"><table class="table"><thead><tr><th>Fassung</th><th>Spezialisierung</th><th>Institut</th><th>Betrieb</th><th>Qualifikation</th><th>Läufe</th><th>Bedarf</th></tr></thead><tbody>
+  {% for a in inventory.agents %}<tr><td class="id"><a href="/campus/register/{{ a.ref }}">{{ a.ref }}</a></td><td style="font-weight:600">{{ a.primary_specialization }}</td><td style="font-size:12px">{{ institutes.get(a.institute_id, a.institute_id) }}</td>
+    <td><span class="tag tag-neutral">{{ a.operating_status }}</span></td><td><span class="tag {% if a.qualification_status == 'task_qualified' %}tag-outline{% else %}tag-neutral{% endif %}">{{ a.qualification_status }}</span></td><td class="nowrap">{{ a.runs }}</td><td class="id">{{ a.need_record_ref }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Noch keine Agentenprofile registriert.</div>{% endif %}
+<div class="label">Skills</div>
+{% if inventory.skills %}<div class="tablewrap"><table class="table"><thead><tr><th>Fassung</th><th>Zweck</th><th>Betrieb</th><th>Nachweise</th><th>Grenzen</th></tr></thead><tbody>
+  {% for s in inventory.skills %}<tr><td class="id"><a href="/campus/register/{{ s.ref }}">{{ s.ref }}</a></td><td>{{ s.purpose }}</td><td><span class="tag tag-neutral">{{ s.operating_status }}</span></td><td style="font-size:12px">{{ s.qualification_refs|join(", ") or "keine" }}</td><td style="font-size:12px">{{ s.limitations|join("; ") if s.limitations is iterable and s.limitations is not string else s.limitations }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Noch keine Skills registriert.</div>{% endif %}
+{% endblock %}

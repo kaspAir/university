@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from campus_infra.blobstore import LocalBlobStore
 from campus_infra.db import make_engine, make_session_factory
@@ -12,6 +15,7 @@ from . import errors
 from .errors import trace_id
 from .routers import auth, experiments, factory, governance, health, pilot, research, research_flow
 from .settings import Settings, get_settings
+from .web import router as web
 
 API_PREFIX = "/api/v1"
 
@@ -60,6 +64,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(factory.router, prefix=API_PREFIX)
     app.include_router(experiments.router, prefix=API_PREFIX)
     app.include_router(pilot.router, prefix=API_PREFIX)
+    # first surface (chapter 18): server-rendered pages behind the same session; static files are the design tokens and two small files
+    app.mount("/campus/static", StaticFiles(directory=str(Path(__file__).parent / "web" / "static")), name="campus-static")
+    app.include_router(web.router, prefix="/campus")
+
+    @app.exception_handler(web.LoginRequired)
+    async def _login_required(request: Request, exc: web.LoginRequired):
+        return RedirectResponse("/campus/login", status_code=303)
+
+    @app.get("/", include_in_schema=False)
+    async def _root():
+        return RedirectResponse("/campus", status_code=307)
+
     return app
 
 

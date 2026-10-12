@@ -1,0 +1,24 @@
+<div id="decision-dialog" class="dialog-backdrop hidden">
+  <div class="dialog" style="width:min(720px,100%)">
+    <div class="row1" style="display:flex;justify-content:space-between;font-size:11px"><span class="kicker">Mandat · vorbehaltener Entscheid (Art. 11)</span></div>
+    <h2 data-f="title" style="font-size:22px;margin:8px 0 4px"></h2>
+    <div class="meta" data-f="meta"></div>
+    <p data-f="question" style="font-size:14px"></p>
+    <div class="two-col">
+      <div><label class="label" style="margin-top:0">Tragende Gründe</label><textarea class="input" name="rationale" rows="4" placeholder="Warum diese Entscheidung?"></textarea>
+        <label class="label">Folgen</label><textarea class="input" name="consequences" rows="2" placeholder="Was folgt aus der Entscheidung?"></textarea></div>
+      <div><label class="label accent" style="margin-top:0">Verbleibende Einwände</label><textarea class="input" name="objections" rows="4" placeholder="Ein Einwand je Zeile (darf leer sein)"></textarea>
+        <div data-f="conditions" class="hidden"><label class="label accent">Auflage (bei begrenzter Annahme)</label>
+          <input class="input" name="cond_text" placeholder="Auflage"><input class="input" name="cond_resp" placeholder="Zuständig" style="margin-top:6px"><input class="input" name="cond_due" type="date" style="margin-top:6px"></div></div>
+    </div>
+    <div class="hint">Bindet die angezeigte Fassung. Eine geänderte Fassung erzeugt eine neue Freigabefrage (I05). Keine Zustimmung durch Schweigen oder Fristablauf. Die nicht gewählten Optionen werden als vorgelegte Alternativen protokolliert.</div>
+    <div data-f="err" class="error-block hidden"></div>
+    <div class="opts">
+      <button class="btn btn-primary" data-option="accept">Annehmen</button>
+      <button class="btn btn-secondary" data-option="accept_limited">Begrenzt annehmen</button>
+      <button class="btn btn-secondary" data-option="revise">Überarbeiten</button>
+      <button class="btn btn-secondary" data-option="reject">Ablehnen</button>
+    </div>
+    <div style="margin-top:12px"><button class="btn btn-ghost" data-f="cancel">Schliessen ohne Entscheid</button></div>
+  </div>
+</div>

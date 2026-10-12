@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Prüfung & Freigabe · Phronesis{% endblock %}
+{% block h1 %}Prüfung &amp; Freigabe{% endblock %}
+{% block content %}
+<div class="meta" style="margin-top:8px">Nur vorbehaltene Entscheide nach Art. 11. Routine-Genehmigungen belasten dieses Zentrum nicht.</div>
+{% if request.query_params.get("decided") %}<div class="error-block" style="border-top-color:var(--color-text)">Entschieden · Entscheid {{ request.query_params.get("decided") }} protokolliert.</div>{% endif %}
+<div class="label">Offene Mandatsentwürfe</div>
+{% if open_mandates %}
+<div class="cards" style="margin-top:0">
+  {% for m in open_mandates %}
+  <div class="card" data-decision data-object-id="{{ m.mandate_version_id }}" data-version="{{ m.version }}" data-title="{{ m.document.title }}" data-budget="{{ m.budget }}" data-question="{{ m.document.question_space }}">
+    <div class="row1"><span class="kicker">Mandat · vorbehaltener Entscheid (Art. 11)</span><span class="due">{{ m.document.decision_due or "ohne Frist" }}</span></div>
+    <div class="title">{{ m.document.title }}</div>
+    <div class="cmeta">{{ m.mandate_id }} · Fassung {{ m.version }} · Budget {{ m.budget }} · Hash {{ m.document_hash[:12] }}…</div>
+    <div class="open">{{ m.document.question_space }}<br><span style="color:var(--color-neutral-700)">Ziel: {{ m.document.knowledge_goal }}</span></div>
+    <div class="actions">{% if can_decide %}<button class="btn btn-primary" data-decide>Entscheiden</button>{% else %}<span class="tag tag-neutral">nur Forschungsleitung</span>{% endif %}</div>
+  </div>
+  {% endfor %}
+</div>
+{% include "_decision_dialog.html" %}
+{% else %}<div class="empty">Keine offenen Mandatsentwürfe. Ein Mandat entsteht über <code>POST /api/v1/mandates</code> und wartet hier auf den Entscheid.</div>{% endif %}
+
+<div class="label">Mandate</div>
+{% if mandates %}<div class="tablewrap"><table class="table"><thead><tr><th>Mandat</th><th>Fassung</th><th>Titel</th><th>Zustand</th><th>Budget</th><th>Hash</th></tr></thead><tbody>
+  {% for m in mandates %}<tr><td class="id">{{ m.mandate_id }}</td><td>{{ m.version }}</td><td style="font-weight:600">{{ m.document.title }}</td><td><span class="tag {% if m.state == 'approved' %}tag-outline{% elif m.state == 'draft' %}tag-accent{% else %}tag-neutral{% endif %}">{{ m.state }}</span></td><td class="nowrap">{{ m.budget }}</td><td class="id">{{ m.document_hash[:12] }}…</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Noch kein Mandat.</div>{% endif %}
+
+<div class="label">Protokollierte Entscheide</div>
+{% if decisions %}<div class="tablewrap"><table class="table"><thead><tr><th>Zeit</th><th>Art</th><th>Gegenstand</th><th>Option</th><th>Entschieden von</th><th>Gründe</th><th>Einwände</th></tr></thead><tbody>
+  {% for d in decisions %}<tr><td class="nowrap" style="font-size:12px">{{ d.decided_at|dt }}</td><td style="font-size:12px">{{ d.decision_type }}</td><td class="id">{{ d.object_type }} {{ d.object_id }} v{{ d.object_version }}</td><td><span class="tag tag-neutral">{{ d.option|option_label }}</span></td><td style="font-size:12px">{{ users.get(d.decided_by, d.decided_by) }}</td><td style="font-size:12px">{{ d.rationale }}</td><td style="font-size:12px">{{ d.remaining_objections|join("; ") or "–" }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Noch keine Entscheide protokolliert.</div>{% endif %}
+{% endblock %}

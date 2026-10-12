@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ ref }} · Register{% endblock %}
+{% block h1class %}dossier{% endblock %}
+{% block h1 %}Warum existiert {{ ref }}?{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/campus/register">Register</a> › {{ ref }}</div>
+<div class="meta" style="margin-top:8px">Bedarf, Alternativen damals, Prüfläufe, Nachweise, Einsätze, Kosten, Abhängigkeiten, Stilllegung: aus den Registern, nicht nachträglich erfunden (Art. 26, A09).</div>
+<pre class="json" style="margin-top:18px">{{ data_json }}</pre>
+{% endblock %}

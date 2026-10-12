@@ -17,7 +17,7 @@ unter `00_Basisdokumente/`, die Oberfläche ist in `design_handoff_phronesis_cam
 | `design_handoff_phronesis_campus_ui/` | UI-Handoff: Design System «Modernist», Ansichten, nicht verhandelbare UI-Regeln |
 | `CLAUDE.md` | Entwicklungsanweisung (Paketfassung plus Repo-Bezug) |
 
-## Stand: S0 bis S5 gebaut; offline geprüft, Sandbox lokal gemessen, nichts live
+## Stand: S0 bis S5 gebaut, erste Oberfläche vorhanden; offline geprüft, Sandbox lokal gemessen, nichts live
 
 S0 = Verträge, Migrationen, echte lokale Anmeldung, Rollen, Policy, Audit/Outbox, Budget, Mock-Adapter.
 S1 = Provider-Adapter (Anthropic, OpenAI) hinter dem Gateway, Selector mit Kernprüfung, Neuplanung nach Ausfall,
@@ -35,6 +35,9 @@ Nachweisen (stdout ist Inhalt), Experimente als Belege nur wenn gemessen, Prüfm
 S5 = Maschinerie des kontrollierten Piloten: vorregistriertes Protokoll mit Hash, Freigabetor nach Anhang F mit importiertem
 Plattform-Testnachweis, drei Bedingungen unter gemeinsamem Budget, verblindete unabhängige Bewertung durch ein Modell, das in keinem Arm
 eingesetzt war, Bericht aus Daten mit Unterschieden statt Mehrwertbehauptung, menschliche Freigabe ([docs/S5_UMSETZUNG.md](docs/S5_UMSETZUNG.md)).
+Oberfläche = sieben serverseitig gerenderte Ansichten unter `/campus` hinter derselben Sitzung (Campus, Dossiers, Dossier mit drei Statusachsen,
+Register, Modelle, Prüfung & Freigabe mit Entscheiddialog nach Art. 11, Bibliothek, Betrieb); Mock-Läufe sind als synthetisch markiert
+([docs/WEB_UI.md](docs/WEB_UI.md)).
 
 **Nichts davon ist live nachgewiesen**; die Sandbox-Härtung ist mit echten Containern auf dem Entwicklungs-Host gemessen, nicht auf einem
 Zielhost. Das Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid, siehe
@@ -44,7 +47,7 @@ Vorschlag S0: [docs/S0_VORSCHLAG.md](docs/S0_VORSCHLAG.md) · Betrieb: [docs/BET
 Entscheide: [docs/adr/](docs/adr/) · CI: [docs/JENKINS.md](docs/JENKINS.md)
 
 ```
-apps/api/campus_api/            FastAPI: Anmeldung, Sitzungen, CSRF, Commands, Fehlerobjekt, Health
+apps/api/campus_api/            FastAPI: Anmeldung, Sitzungen, CSRF, Commands, Fehlerobjekt, Health; web/ = erste Oberfläche (Jinja2, Token-CSS)
 packages/domain/campus_domain/  Fachregeln ohne Framework: Statusachsen, Geld, Routing-Kern, Startwächter, Rollen
 packages/contracts/             Sechs JSON-Schemas des Pakets + typisierte Modelle + Routing-Policy
 packages/infrastructure/        SQLAlchemy-Modelle, Audit/Outbox, Budget-Sperren, Aufrufjournal, Blob-Store

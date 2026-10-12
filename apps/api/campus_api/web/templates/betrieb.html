@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Betrieb & Kosten · Phronesis{% endblock %}
+{% block h1 %}Betrieb &amp; Kosten{% endblock %}
+{% block content %}
+<div class="label">Komponenten</div>
+<div class="tablewrap"><table class="table"><tbody>
+  {% for k, v in ready.checks.items() %}<tr><td style="font-weight:600">{{ k }}</td><td><span class="tag {% if v == 'ok' %}tag-outline{% else %}tag-accent{% endif %}">{{ v }}</span></td></tr>{% endfor %}
+  <tr><td style="font-weight:600">Leistungsebene</td><td>{{ capability_level }}{% if mock %} <span class="tag tag-accent">Mockbetrieb</span>{% endif %}</td></tr>
+  <tr><td style="font-weight:600">Sandboxpfad</td><td>{{ sandbox.runner_kind or "keiner" }} · {% if sandbox.accepted %}abgenommen{% else %}nicht abgenommen{% endif %} · {{ sandbox.note }}</td></tr>
+  <tr><td style="font-weight:600">Aufrufe mit unbekanntem Ausgang</td><td>{{ unknown }}</td></tr>
+</tbody></table></div>
+<div class="label">Modellkatalog</div>
+{% if catalog.revisions %}<div class="tablewrap"><table class="table"><thead><tr><th>Katalog</th><th>Fassung</th><th>Zustand</th></tr></thead><tbody>
+  {% for r in catalog.revisions %}<tr><td class="id">{{ r.catalog_id }}</td><td>{{ r.revision }}</td><td><span class="tag {% if r.state == 'active' %}tag-outline{% else %}tag-neutral{% endif %}">{{ r.state }}</span></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Kein Katalog importiert.</div>{% endif %}
+<div class="label">Budgetbaum</div>
+{% if tree %}{% for a in tree %}<div class="budget-row" style="padding-left:{{ a.depth * 16 }}px;font-weight:{{ 800 if a.depth == 0 else (600 if a.depth == 1 else 400) }}"><div>{{ a.name }}</div><div class="amt">{{ a.consumed_minor|money(a.currency) }}</div><div class="amt">{{ a.limit_minor|money(a.currency) }}</div></div>{% endfor %}
+{% else %}<div class="empty">Leer.</div>{% endif %}
+<div class="label">Pilotstudien (S5)</div>
+{% if pilots %}<div class="tablewrap"><table class="table"><thead><tr><th>Pilot</th><th>Fassung</th><th>Stufe</th><th>Zustand</th><th>Vorregistrierung</th><th>Selbstkontrolle</th></tr></thead><tbody>
+  {% for p in pilots %}<tr><td class="id">{{ p.ref }}</td><td>{{ p.version }}</td><td>{{ p.stage }}</td><td><span class="tag tag-neutral">{{ p.state }}</span></td><td class="id">{{ p.preregistration_sha256[:12] }}…</td><td>{{ "ausgewiesen" if p.self_control else "–" }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Kein Pilot registriert. Die offenen Betriebsentscheide stehen in docs/S5_UMSETZUNG.md, Abschnitt 5.</div>{% endif %}
+{% endblock %}

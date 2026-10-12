@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Dossiers · Phronesis{% endblock %}
+{% block h1 %}Dossiers{% endblock %}
+{% block content %}
+<div class="meta" style="margin-top:8px">{% if inst_name %}Filter: {{ inst_name }} · <a href="/campus/dossiers">alle Institute</a> · {% endif %}{{ rows|length }} Dossier{% if rows|length != 1 %}s{% endif %}</div>
+{% if rows %}
+<div class="tablewrap"><table class="table">
+  <thead><tr><th>ID</th><th>Titel</th><th>Institut</th><th>Arbeitsstand</th><th>Aussagen</th><th>Freigabe</th><th>Mittel</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr class="link" onclick="location.href='/campus/dossiers/{{ r.project_id }}'">
+    <td class="id">{{ r.project_id }}</td>
+    <td style="font-weight:600"><a href="/campus/dossiers/{{ r.project_id }}">{{ r.title }}</a>{% if r.synthetic %} <span class="tag tag-accent">synthetisch</span>{% endif %}</td>
+    <td style="font-size:12px">{{ r.institute }}</td>
+    <td><span class="tag tag-neutral">{{ r.work_state }}</span></td>
+    <td style="font-size:12px">{% if r.claims_total %}{% for s, n in r.claims.items() %}{{ n }} {{ s|status_label }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}–{% endif %}</td>
+    <td><span class="tag {% if r.release == 'blocked' %}tag-accent{% else %}tag-neutral{% endif %}">{% if r.release == 'blocked' %}gesperrt ({{ r.open_findings }} Einwand/Einwände){% else %}{{ r.release }}{% endif %}</span></td>
+    <td class="nowrap">{{ r.consumed|money(r.currency) }} / {{ r.limit|money(r.currency) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody></table></div>
+{% else %}
+<div class="empty">Noch keine Dossiers. Ein Dossier entsteht mit einem Projekt unter einem freigegebenen Mandat (<code>POST /api/v1/projects</code>).</div>
+{% endif %}
+{% endblock %}

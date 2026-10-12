@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Campus · Phronesis{% endblock %}
+{% block h1 %}{{ headline }}{% endblock %}
+{% block content %}
+{% if decisions %}
+<div class="label">Wartet auf mich</div>
+<div class="cards">
+  {% for d in decisions %}
+  <div class="card" data-decision data-object-id="{{ d.object_id }}" data-version="{{ d.version }}" data-title="{{ d.title }}" data-budget="{{ d.budget }}" data-question="{{ d.question_space or '' }}">
+    <div class="row1"><span class="kicker">{{ d.kind }} · vorbehaltener Entscheid (Art. 11)</span><span class="due">{% if d.due %}fällig {{ d.due }}{% else %}ohne Frist{% endif %}</span></div>
+    <div class="title">{{ d.title }}</div>
+    <div class="cmeta">Fassung {{ d.version }} · Budget {{ d.budget }}</div>
+    <div class="open">{{ d.knowledge_goal or d.question_space or "Mandatsentwurf" }}</div>
+    <div class="actions">{% if can_decide %}<button class="btn btn-primary" data-decide>Entscheiden</button>{% endif %}<a class="btn btn-secondary" href="/campus/pruefung">Prüfung</a></div>
+  </div>
+  {% endfor %}
+</div>
+{% include "_decision_dialog.html" %}
+{% endif %}
+
+<div class="label">Institute</div>
+<div class="institutes">
+  {% for i in institutes %}
+  <a class="inst" href="/campus/dossiers?institut={{ i.id }}" lang="de">
+    <div class="name">{{ i.name }}</div>
+    <div class="big">{{ i.running }}</div>
+    <div class="small">laufend · {{ i.waiting }} warten · {{ i.projects }} Dossier{% if i.projects != 1 %}s{% endif %}</div>
+    <div class="bar"><span style="width:{{ i.budget_pct or 0 }}%"></span></div>
+    <div class="small">{% if i.budget_pct is not none %}Budget {{ i.budget_pct }}% genutzt{% else %}kein Budget zugewiesen{% endif %}</div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="two">
+  <section>
+    <div class="label">Mittel · Budgetbaum</div>
+    {% if tree %}{% for a in tree %}
+    <div class="budget-row" style="padding-left:{{ a.depth * 16 }}px;font-weight:{{ 800 if a.depth == 0 else (600 if a.depth == 1 else 400) }}">
+      <div>{{ a.name }}{% if a.protected_kind %} <span class="tag tag-accent">{{ a.protected_kind }}</span>{% endif %}
+        <div class="bar{% if a.protected_kind %} protected{% endif %}" style="margin-top:4px"><span style="width:{{ (100 * a.consumed_minor / a.limit_minor)|round|int if a.limit_minor else 0 }}%"></span></div></div>
+      <div class="amt">{{ a.consumed_minor|money(a.currency) }}</div><div class="amt">{{ a.limit_minor|money(a.currency) }}</div>
+    </div>{% endfor %}
+    {% else %}<div class="empty">Kein Mandat freigegeben; der Budgetbaum ist leer.</div>{% endif %}
+  </section>
+  <section>
+    <div class="label">Prüfkapazität · Modelle</div>
+    {% if catalog.deployments %}{% for d in catalog.deployments %}
+    <div class="model-row">
+      <span class="sq{% if not d.enabled %} off{% elif d.health != 'available' %} degraded{% endif %}"></span>
+      <span style="font-weight:600">{{ d.canonical_model_id or d.id }}</span>
+      <span style="font-size:12px;color:var(--color-neutral-700)">{{ d.provider_id }} · {{ d.adapter }}{% if d.adapter == 'mock' %} · <span class="tag tag-accent">synthetisch</span>{% endif %}</span>
+      <span class="tag tag-neutral">{% if not d.enabled %}gesperrt{% else %}{{ d.health }}{% endif %}</span>
+    </div>{% endfor %}
+    {% else %}<div class="empty">Kein aktiver Modellkatalog.</div>{% endif %}
+    <div class="label">Ereignisse</div>
+    {% if events %}{% for e in events %}
+    <div class="event-row"><span class="t" title="{{ e.occurred_at|dt }}">{{ e.occurred_at|time }}</span>
+      <span><span class="kind{% if 'retract' in e.command or 'hold' in e.command or 'stop' in e.command %} alert{% endif %}">{{ e.command }}</span> — {{ e.object_type }} {{ e.object_id }} · {{ e.policy_decision }}</span></div>
+    {% endfor %}{% else %}<div class="empty">Noch keine Ereignisse.</div>{% endif %}
+  </section>
+</div>
+{% endblock %}

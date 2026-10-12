@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Bibliothek · Phronesis{% endblock %}
+{% block h1 %}Bibliothek{% endblock %}
+{% block content %}
+<div class="meta" style="margin-top:8px">Quellen mit Fassung und Status über alle Dossiers. Ein zurückgezogener Beleg bleibt sichtbar; betroffene Aussagen werden neu bewertet (T09).</div>
+{% if rows %}<div class="tablewrap"><table class="table"><thead><tr><th>ID</th><th>Quelle</th><th>Dossier</th><th>Status</th><th>Fassungen</th></tr></thead><tbody>
+  {% for s in rows %}<tr><td class="id">{{ s.source_id }}</td><td>{{ s.url or s.title or "–" }}</td><td style="font-size:12px"><a href="/campus/dossiers/{{ s.project_id }}?tab=quellen">{{ s.project_title }}</a></td><td><span class="tag {% if s.status != 'active' %}tag-accent{% else %}tag-neutral{% endif %}">{{ s.status }}</span></td><td style="font-size:12px">{{ s.versions|length if s.versions is defined else "–" }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Noch keine Quellen aufgenommen (<code>POST /api/v1/sources/fetch</code>).</div>{% endif %}
+{% endblock %}

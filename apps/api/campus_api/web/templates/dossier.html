@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% set p = doc.project %}{% set m = doc.mandate %}{% set ax = doc.status_axes %}
+{% block title %}{{ p.title }} · Phronesis{% endblock %}
+{% block h1class %}dossier{% endblock %}
+{% block h1 %}{{ p.title }}{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/campus/dossiers">Dossiers</a> › <a href="/campus/dossiers?institut={{ p.institute_id }}">{{ institute.name if institute else p.institute_id }}</a> › {{ p.project_id }}</div>
+<div class="context">Mandat {{ m.mandate_id }} v{{ m.version }} ({{ m.state }}) · {{ institute.name if institute else p.institute_id }}
+  {% if doc.declarations.synthetic_content %} · <span class="tag tag-accent">enthält synthetische Fassungen</span>{% endif %}</div>
+
+<div class="axes">
+  <div class="axis"><div class="alabel">Arbeitsstand</div><div class="aval">{{ ax.work }}</div><div class="anote">{{ doc.protocol|length }} Aufgabe(n) · {{ doc.runs|length }} Lauf/Läufe</div></div>
+  <div class="axis"><div class="alabel">Aussagen · epistemisch</div><div class="aval">{% if ax.claims_by_epistemic_status %}{% for s, n in ax.claims_by_epistemic_status.items() %}{{ n }} {{ s|status_label }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}keine{% endif %}</div><div class="anote">relativ zur Bewertung je Lauf; Mehrheit ersetzt keine Sachprüfung</div></div>
+  <div class="axis"><div class="alabel">Freigabe</div><div class="aval">{{ ax.release }}</div><div class="anote">{% if ax.blocking.open_findings %}blockiert durch Einwände {{ ax.blocking.open_findings|join(", ") }}{% elif ax.blocking.open_reassessments %}blockiert durch Neubewertungen{% else %}{{ artifacts|length }} Fassung(en); Freigabe nur je Fassung (Hash){% endif %}</div></div>
+</div>
+
+<div class="tabs">{% for key, label, n in tabs %}<a href="?tab={{ key }}" class="{% if tab == key %}active{% endif %}">{{ label }}{% if n is not none %} {{ n }}{% endif %}</a>{% endfor %}</div>
+<div class="tabbody">
+{% if tab == "frage" %}
+  <div class="grid-2-300">
+    <div>
+      <div class="kicker">Frage</div>
+      <div class="question">{{ m.question_space or "–" }}</div>
+      <div class="protocol-line">Erkenntnisziel: {{ m.knowledge_goal or "–" }} · Methodenrahmen: {{ m.method_frame or "–" }}</div>
+      <div class="label">Protokoll · Aufgaben</div>
+      {% if doc.protocol %}<div class="tablewrap"><table class="table"><thead><tr><th>Aufgabe</th><th>Klasse</th><th>Rolle</th><th>Zustand</th><th>Modus</th></tr></thead><tbody>
+        {% for t in doc.protocol %}<tr><td class="id">{{ t.task_id }}</td><td>{{ t.task_class }}</td><td>{{ t.role }}</td><td><span class="tag tag-neutral">{{ t.state }}</span></td><td style="font-size:12px">{{ t.qualification_mode }}</td></tr>{% endfor %}
+      </tbody></table></div>{% else %}<div class="empty">Noch keine Aufgaben.</div>{% endif %}
+      <div class="label">Gegenargumente und Dissens</div>
+      {% if doc.findings %}{% for f in doc.findings %}<div class="finding"><span class="id">{{ f.id }}</span> · <strong>{{ f.subject }}</strong><div class="fmeta">Tragweite {{ f.severity }} · Geltung {{ f.scope }} · Status <span class="tag {% if f.status == 'open' %}tag-accent{% else %}tag-neutral{% endif %}">{{ f.status }}</span></div></div>{% endfor %}
+      {% else %}<div class="empty">Keine Einwände erfasst. Fehlende Gegenprüfung gilt als offen, nicht als bestanden.</div>{% endif %}
+      {% if doc.reassessments %}<div class="label">Fällige Neubewertungen</div>{% for r in doc.reassessments %}<div class="finding"><span class="id">{{ r.id }}</span> · {{ r.trigger }} {{ r.trigger_object_id }} · fällig {{ r.due_at|date }} · <span class="tag tag-accent">{{ r.state }}</span></div>{% endfor %}{% endif %}
+    </div>
+    <aside class="aside">
+      <h4>Letzter Lauf · Modellroute</h4>
+      {% if last_run %}
+        <div>Aufgabe <span class="id">{{ last_run.task_id }}</span> · Lauf <span class="id">{{ last_run.run_attempt_id }}</span></div>
+        <div style="margin-top:8px"><span class="sq{% if last_run.selected.adapter == 'mock' %} degraded{% endif %}"></span> <strong>{{ last_run.selected.canonical_model_id or "–" }}</strong> · {{ last_run.selected.provider_id or "–" }}{% if last_run.synthetic %} <span class="tag tag-accent">synthetisch</span>{% endif %}</div>
+        <div style="font-size:12px;color:var(--color-neutral-700)">Gegenprüfung: {{ last_run.reviewer.canonical_model_id if last_run.reviewer else "offen" }}</div>
+        <div style="font-size:12px;margin-top:8px">Nachweise: {{ last_run.evidence_refs|join(", ") or "keine zitiert" }}</div>
+        {% if last_run.excluded %}<div style="font-size:12px;margin-top:8px">Ausgeschlossen mit Regelgrund:<ul style="margin:4px 0;padding-left:16px">{% for a in last_run.excluded %}<li><span class="id">{{ a.deployment_id }}</span> · {{ a.exclusion_reasons|join(", ") }}</li>{% endfor %}</ul></div>{% endif %}
+        <div class="kv"><span class="k">Route</span><span class="id">{{ last_run.routing_decision_id }}</span><span class="k">Ende</span><span>{{ last_run.end_reason or "läuft" }}</span><span class="k">Datenklasse</span><span>{{ (doc.protocol|selectattr("task_id", "equalto", last_run.task_id)|map(attribute="data_labels")|first or [])|join(", ") }}</span></div>
+      {% else %}<div class="empty">Noch kein Lauf.</div>{% endif %}
+    </aside>
+  </div>
+{% elif tab == "aussagen" %}
+  {% if groups %}
+  <div class="cols">{% for g in groups %}
+    <div><div class="col-head c-{{ g.status }}"><span>{{ g.label }}</span><span>{{ g.claims|length }}</span></div>
+      {% for c in g.claims %}<div class="claim s-{{ g.status }}"><div class="cid">{{ c.local_id }} · {{ c.declared_kind }}{% if c.declared_kind != c.stored_kind %} → gespeichert als {{ c.stored_kind }}{% endif %}</div>
+        <div class="ctext">{{ c.statement }}</div>
+        <div class="cfoot">{{ c.evidence|length }} Beleg(e) · Geltung: {{ c.validity_conditions or "–" }}{% if c.flags %} · <span class="tag tag-accent">{{ c.flags|join(", ") }}</span>{% endif %}</div></div>{% endfor %}
+    </div>{% endfor %}
+  </div>
+  <div class="chain"><strong>Abhängigkeiten</strong> · {% if doc.dependency_edges %}{% for e in doc.dependency_edges %}<span class="edge">{{ e.from_claim_version_id }} → {{ e.to_claim_version_id }} ({{ e.relation }})</span>{% endfor %}<div style="margin-top:6px">Aussagen mit gemeinsamen Ursprüngen zählen nicht als unabhängige Bestätigung.</div>{% else %}keine Kanten{% endif %}</div>
+  {% else %}<div class="empty">Noch keine Aussagen.</div>{% endif %}
+{% elif tab == "quellen" %}
+  {% if doc.sources %}<div class="tablewrap"><table class="table"><thead><tr><th>ID</th><th>Quelle</th><th>Fassung</th><th>Status</th></tr></thead><tbody>
+    {% for s in doc.sources %}<tr><td class="id">{{ s.source_id }}</td><td>{{ s.url or s.title or "–" }}</td><td style="font-size:12px">{{ s.versions|length if s.versions is defined else "–" }} Fassung(en)</td><td><span class="tag {% if s.status != 'active' %}tag-accent{% else %}tag-neutral{% endif %}">{{ s.status }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<div class="empty">Keine Quellen aufgenommen.</div>{% endif %}
+{% elif tab == "laeufe" %}
+  {% if runs %}<div class="tablewrap"><table class="table"><thead><tr><th>Lauf</th><th>Aufgabe</th><th>Agent</th><th>Modell</th><th>Gegenprüfung</th><th>Ende</th></tr></thead><tbody>
+    {% for r in runs %}<tr><td class="id">{{ r.run_attempt_id }} · #{{ r.attempt_no }}</td><td class="id">{{ r.task_id }}</td><td style="font-size:12px">{{ r.agent_profile_version_id }}</td>
+      <td style="font-size:12px">{{ r.selected.canonical_model_id or "–" }}{% if r.synthetic %} <span class="tag tag-accent">synthetisch</span>{% endif %}</td>
+      <td style="font-size:12px">{{ r.reviewer.canonical_model_id if r.reviewer else "offen" }}</td>
+      <td><span class="tag {% if r.end_reason in ('provider_error', 'outcome_unknown', 'budget_exhausted') %}tag-accent{% else %}tag-neutral{% endif %}">{{ r.end_reason or r.state }}</span></td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="label">Prüfberichte</div>
+  {% if doc.reviews %}{% for v in doc.reviews %}<div class="finding"><span class="id">{{ v.review_report_id }}</span> · Lauf {{ v.run_attempt_id }} · Prüfer {{ v.reviewer_canonical_model_id }} · Erzeuger {{ v.producer_canonical_model_id }} · <span class="tag tag-neutral">{{ v.verdict }}</span></div>{% endfor %}{% else %}<div class="empty">Keine Gegenprüfung; Prüfstatus offen.</div>{% endif %}
+  {% else %}<div class="empty">Noch kein Lauf. Alle Versuche inklusive abgebrochener erscheinen hier (Art. 16).</div>{% endif %}
+{% elif tab == "fassungen" %}
+  {% if artifacts %}<div class="vcards">{% for a in artifacts %}<div class="vcard"><div class="vk">{{ a.kind }} · v{{ a.version }} · {{ a.sha256[:12] }}…</div>
+    <div class="card-title" style="margin-top:6px">{% if a.synthetic %}<span class="tag tag-accent">synthetisch</span> {% endif %}{{ a.producer_canonical_model_id }}</div>
+    <div style="font-size:12px;margin-top:8px">Freigaben: {% if a.approvals %}{% for ap in a.approvals %}{{ ap.purpose }} {{ ap.option }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}keine{% endif %}</div>
+    <div style="font-size:12px;color:var(--color-neutral-700);margin-top:4px">Freigabe gilt nur für diesen Hash; Ergebnisfreigabe und externe Freigabe über die API (vorbehaltene Entscheide).</div></div>{% endfor %}</div>
+  {% else %}<div class="empty">Noch keine Fassung eingefroren (<code>POST /api/v1/projects/{id}/dossier</code>).</div>{% endif %}
+{% endif %}
+</div>
+{% endblock %}

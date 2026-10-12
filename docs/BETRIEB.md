@@ -160,6 +160,19 @@ Ohne gültige Abnahme antwortet `POST /api/v1/experiments` mit `CAPABILITY_UNSUP
 Der Entwicklungs-Host (Docker Desktop/WSL2, runc) ist **nicht** der Zielhost: dort ist die Probe erneut zu fahren, und die Isolationsklasse
 (runc, VM, gVisor) ist ein Betriebsentscheid. Sandboxtests mit echten Containern: `CAMPUS_TEST_SANDBOX=1 python -m pytest tests/sandbox`.
 
+## Oberfläche (erste Fassung)
+
+Die Seiten unter `/campus` laufen im API-Prozess (Jinja2, Token-CSS des Design Systems, kein Node). Anmeldung mit Workspace, Benutzername und
+Passwort des bestehenden Kontos; die Seiten lesen über dieselben Dienste wie die JSON-API, die zwei Handlungen (Stopp, Mandatsentscheid) laufen
+über die JSON-API mit CSRF und Idempotency-Key. Details, Regeln und Abweichungen vom Handoff: `docs/WEB_UI.md`. Start lokal:
+
+```bash
+set -a; source .env; set +a
+.venv/Scripts/python -m uvicorn campus_api.main:app --app-dir apps/api --port 8000
+```
+
+`http://localhost:8000/` leitet nach `/campus`. Eine frische Instanz zeigt fünf Institute, dein Konto und leere Zustände; nichts wird vorgetäuscht.
+
 ## Pilotbetrieb (S5)
 
 Reihenfolge für einen Pilot (ADR-0014): 1) Betrieb importiert den JUnit-Bericht des freigegebenen Builds (`POST /api/v1/platform-evidence`,

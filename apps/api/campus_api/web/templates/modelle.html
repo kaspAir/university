@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Modelle · Phronesis{% endblock %}
+{% block h1 %}Modelle{% endblock %}
+{% block content %}
+<div class="meta" style="margin-top:8px">Aktiver Katalog {{ catalog.active_revision or "–" }} · Policy {{ (policies|selectattr("state", "equalto", "active")|map(attribute="revision")|first) or "keine aktiv" }} · Datenklasse und Qualifikation werden nicht hinter einem Pauschalsymbol versteckt.</div>
+{% if catalog.deployments %}<div class="tablewrap"><table class="table"><thead><tr><th></th><th>Deployment</th><th>Kanonisches Modell</th><th>Anbieter · Adapter</th><th>Fähigkeiten</th><th>Datenklassen</th><th>Preis</th><th>Nachweise</th><th>Schlüssel</th></tr></thead><tbody>
+  {% for d in catalog.deployments %}<tr>
+    <td><span class="sq{% if not d.enabled %} off{% elif d.health != 'available' %} degraded{% endif %}"></span></td>
+    <td class="id">{{ d.id }}</td><td style="font-weight:600">{{ d.canonical_model_id }}</td>
+    <td style="font-size:12px">{{ d.provider_id }} · {{ d.adapter }}{% if d.adapter == 'mock' %} <span class="tag tag-accent">synthetisch</span>{% endif %}</td>
+    <td style="font-size:12px">{% for k, v in d.capabilities.items() %}{{ k }}: {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+    <td style="font-size:12px">{{ d.allowed_data_labels|join(", ") }}</td><td class="id">{{ d.pricing_ref or "–" }}</td>
+    <td style="font-size:12px">{{ d.qualification_refs|join(", ") or "–" }}</td>
+    <td><span class="tag tag-neutral">{% if d.secret_configured %}referenziert{% else %}kein{% endif %}</span></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Kein aktiver Katalog. Zwei echte, freigegebene Modellzugänge sind das S1-Tor (docs/S1_UMSETZUNG.md, Abschnitt 3).</div>{% endif %}
+<div class="label">Qualifikationsnachweise</div>
+{% if qualifications %}<div class="tablewrap"><table class="table"><thead><tr><th>Ref</th><th>Modell</th><th>Aufgabenklasse</th><th>Art · Rolle</th><th>Profil · Skills</th><th>Prüfer</th><th>Bestanden</th></tr></thead><tbody>
+  {% for q in qualifications %}<tr><td class="id">{{ q.ref }}</td><td>{{ q.canonical_model_id }}</td><td>{{ q.task_class }}</td><td style="font-size:12px">{{ q.kind }} · {{ q.role or "–" }}</td><td style="font-size:12px">{{ q.profile_ref or "–" }} · {{ q.skill_refs|join(", ") if q.skill_refs else "–" }}</td><td style="font-size:12px">{{ q.evaluated_by }} ({{ q.evaluated_by_kind }})</td><td><span class="tag {% if q.passed %}tag-outline{% else %}tag-accent{% endif %}">{{ "ja" if q.passed else "nein" }}</span></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<div class="empty">Keine Nachweise im Register.</div>{% endif %}
+{% endblock %}

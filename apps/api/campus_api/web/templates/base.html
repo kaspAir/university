@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Phronesis-Campus{% endblock %}</title>
+<link rel="stylesheet" href="/campus/static/tokens.css">
+<link rel="stylesheet" href="/campus/static/campus.css">
+</head>
+<body data-csrf="{{ csrf }}">
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">PHRONESIS<span class="dot">.</span></div>
+    <nav>
+      {% for key, label, href in [("campus", "Campus", "/campus"), ("dossiers", "Dossiers", "/campus/dossiers"), ("register", "Register", "/campus/register"),
+                                  ("modelle", "Modelle", "/campus/modelle"), ("pruefung", "Prüfung &amp; Freigabe", "/campus/pruefung"),
+                                  ("bibliothek", "Bibliothek", "/campus/bibliothek"), ("betrieb", "Betrieb &amp; Kosten", "/campus/betrieb")] %}
+      <a class="nav-item{% if view == key %} active{% endif %}" href="{{ href }}"><span>{{ label|safe }}</span>
+        {% if counters[key] is not none %}<span class="count">{{ counters[key] }}</span>{% endif %}</a>
+      {% endfor %}
+    </nav>
+    <div class="side-foot">
+      <div><div class="role">{{ roles|join(" · ") }}</div><div class="name">{{ user.display_name }}</div></div>
+      {% if can_stop %}
+        {% if workspace.stopped %}<button class="btn btn-secondary btn-block" data-resume>Stopp aktiv · Wiederaufnahme</button>
+        {% else %}<button class="btn btn-secondary btn-block" data-stop>Stopp – alle Läufe</button>{% endif %}
+      {% endif %}
+      <form method="post" action="/campus/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn btn-ghost" type="submit">Abmelden</button></form>
+    </div>
+  </aside>
+  <main class="main">
+    {% if workspace.stopped %}
+    <div class="banner"><div><strong>Alle Läufe angehalten.</strong> Grund: {{ workspace.stop_reason or "–" }}. Register, Suche und Freigaben bleiben bedienbar.</div>
+      {% if can_stop %}<button class="btn" data-resume>Wiederaufnahme</button>{% endif %}</div>
+    {% endif %}
+    <div class="head">
+      <h1 class="{% block h1class %}{% endblock %}">{% block h1 %}{% endblock %}</h1>
+      <div class="meta"><span>{{ now }}</span><span>·</span><span>{{ capability_level }}</span>
+        {% if mock %}<span class="tag tag-accent" title="Leistungsebene development_mock: Modellaufrufe gehen an den Mock-Adapter; Ergebnisse sind synthetisch">Mockbetrieb</span>{% endif %}</div>
+    </div>
+    <div id="action-error" class="error-block hidden"></div>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="/campus/static/campus.js"></script>
+</body>
+</html>
