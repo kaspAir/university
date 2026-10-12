@@ -5,6 +5,10 @@ set -u
 ENV_FILE="${CAMPUS_ENV_FILE:-$HOME/campus-data/secrets/campus.env}"
 set -a; . "$ENV_FILE"; set +a
 LOG="$CAMPUS_DATA/logs/restore_check.log"; DEST="$CAMPUS_DATA/backups"
+mkdir -p "$CAMPUS_DATA/run"
+exec 9>"$CAMPUS_DATA/run/keepalive.lock"
+flock -w 300 9 || { printf '%s FAIL: Sperre nicht erhalten
+' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG"; exit 1; }
 PY="$CAMPUS_HOME/.venv/bin/python"; PG_BIN="$("$PY" -c 'import pgserver._commands as c; print(c.POSTGRES_BIN_PATH)')"
 say() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; echo "$*"; }
 LATEST="$(ls -1t "$DEST"/pg-*.dump 2>/dev/null | head -1)"

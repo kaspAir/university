@@ -17,7 +17,7 @@ unter `00_Basisdokumente/`, die Oberfläche ist in `design_handoff_phronesis_cam
 | `design_handoff_phronesis_campus_ui/` | UI-Handoff: Design System «Modernist», Ansichten, nicht verhandelbare UI-Regeln |
 | `CLAUDE.md` | Entwicklungsanweisung (Paketfassung plus Repo-Bezug) |
 
-## Stand: S0 bis S5 gebaut, erste Oberfläche vorhanden; offline geprüft, Sandbox lokal gemessen, nichts live
+## Stand: S0 bis S5 gebaut, erste Oberfläche live auf university.kaspair.ch (Pilotumgebung, Mockbetrieb); Modelle nicht live
 
 S0 = Verträge, Migrationen, echte lokale Anmeldung, Rollen, Policy, Audit/Outbox, Budget, Mock-Adapter.
 S1 = Provider-Adapter (Anthropic, OpenAI) hinter dem Gateway, Selector mit Kernprüfung, Neuplanung nach Ausfall,
@@ -44,7 +44,7 @@ Zielhost. Das Tor «zwei echte freigegebene Modelle» ist ein Betriebsentscheid,
 [docs/S1_UMSETZUNG.md](docs/S1_UMSETZUNG.md) Abschnitt 3. Befunde und Abnahmepunkte: [docs/S2_UMSETZUNG.md](docs/S2_UMSETZUNG.md).
 
 Vorschlag S0: [docs/S0_VORSCHLAG.md](docs/S0_VORSCHLAG.md) · Betrieb: [docs/BETRIEB.md](docs/BETRIEB.md) ·
-Entscheide: [docs/adr/](docs/adr/) · CI: [docs/JENKINS.md](docs/JENKINS.md)
+Entscheide: [docs/adr/](docs/adr/) · CI: [docs/JENKINS.md](docs/JENKINS.md) · Server: [docs/BETRIEB_SERVER.md](docs/BETRIEB_SERVER.md)
 
 ```
 apps/api/campus_api/            FastAPI: Anmeldung, Sitzungen, CSRF, Commands, Fehlerobjekt, Health; web/ = erste Oberfläche (Jinja2, Token-CSS)

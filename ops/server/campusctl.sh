@@ -48,7 +48,9 @@ start_temporal() {
 stop_temporal() { stop_pid "$RUN/temporal.pid" temporal; }
 
 # ---------------------------------------------------------------- api (uvicorn, 127.0.0.1 only; the PHP proxy of the site forwards to it)
-health_api() { curl -fsS -m 5 "http://127.0.0.1:$CAMPUS_API_PORT/api/v1/ready" 2>/dev/null | grep -q '"ready":true'; }
+# liveness of the process; readiness (active policy and catalog) is governance state, reported by status, never a reason to restart
+health_api() { curl -fsS -m 5 "http://127.0.0.1:$CAMPUS_API_PORT/api/v1/health" 2>/dev/null | grep -q '"status":"ok"'; }
+ready_api() { curl -sS -m 5 "http://127.0.0.1:$CAMPUS_API_PORT/api/v1/ready" 2>/dev/null | grep -q '"ready":true'; }
 start_api() {
   health_api && return 0
   stop_pid "$RUN/api.pid" api
@@ -85,7 +87,8 @@ case "$cmd" in
   restart) for c in $(echo "$COMPS" | tr ' ' '\n' | tac); do "stop_$c"; done; for c in $COMPS; do "start_$c" || rc=1; done ;;
   health)  for c in $COMPS; do if "health_$c"; then echo "$c: ok"; else echo "$c: FEHLT"; rc=1; fi; done ;;
   status)  for c in $COMPS; do if "health_$c"; then echo "$c: ok"; else echo "$c: nicht gesund"; rc=1; fi; done
-           echo "build: $(cat "$RUN/deployed.sha" 2>/dev/null || echo unbekannt)" ;;
+           echo "build: $(cat "$RUN/deployed.sha" 2>/dev/null || echo unbekannt)"
+           if ready_api; then echo "ready: ja (Policy und Katalog aktiv)"; else echo "ready: nein (Policy oder Katalog fehlt; kein Neustartgrund)"; fi ;;
   *) echo "usage: $0 {start|stop|restart|status|health} [pg|temporal|api|worker|all]" >&2; exit 2 ;;
 esac
 exit $rc

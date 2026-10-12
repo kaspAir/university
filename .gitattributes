@@ -1,0 +1,5 @@
+# shell scripts and server files must stay LF (they are copied to a Linux host as-is)
+*.sh text eol=lf
+*.php text eol=lf
+Jenkinsfile text eol=lf
+ops/** text eol=lf

@@ -33,6 +33,8 @@ Ports des Kontos: API 127.0.0.1:8060, Temporal 127.0.0.1:7260. PostgreSQL ohne P
 | `deploy.sh <sha>` | Aus Jenkins per SSH: Lock gegen Keepalive, Backup, Checkout, Abhängigkeiten, `alembic upgrade head`, Neustart API+Worker, Gesundheit mit Build-Hash; Rollback des Codes bei Fehlern. |
 | `bootstrap_campus.py` | Einmalig über die lokale API: Pilot-Policy (Limits sichtbar im Skript), synthetischer Preis, Datenfreigaben der Mock-Anbieter, Fixture-Katalog (Mock), ein Mandatsentwurf, der auf den Entscheid in der Oberfläche wartet. |
 | `proxy/index.php`, `proxy/htaccess` | PHP-Proxy und Rewrite für die Site. |
+| `crontab_install.sh` | Idempotente Ergänzung der geteilten Crontab mit Sicherung und Nachkontrolle (`--remove` entfernt die Campus-Zeilen). |
+| `synthetic_task.py` | Nach der Mandatsfreigabe in der Oberfläche: ein synthetischer Auftrag über den echten Kontrollweg (Projekt, Aufgabe, Route, Lauf, Gegenprüfung, Dossier), alles als synthetisch gekennzeichnet. |
 
 ## Erstinstallation (Reihenfolge)
 
@@ -42,14 +44,12 @@ Ports des Kontos: API 127.0.0.1:8060, Temporal 127.0.0.1:7260. PostgreSQL ohne P
 4. Workspace und Konto: `cd ~/campus && set -a && . ~/campus-data/secrets/campus.env && set +a && .venv/bin/python -m campus_api.cli init-workspace --id ws-campus --name "Phronesis-Forschungscampus"`; Konto mit `CAMPUS_ADMIN_PASSWORD` aus einer 0600-Datei anlegen (`create-user … --roles research_director,operator`).
 5. `.venv/bin/python ops/server/bootstrap_campus.py --workspace ws-campus --username <user> --password-file <datei>`.
 6. Web-Root: `proxy/index.php` und `proxy/htaccess` nach `~/sites/university.kaspair.ch/` (Platzhalter-`index.html` entfernen).
-7. Crontab ergänzen (nur mit Marker `# campus`, bestehende Zeilen unverändert):
-   ```
-   # campus: keepalive, backup, restore check (ADR-0015)
-   @reboot /bin/bash $HOME/campus/ops/server/keepalive.sh
-   */3 * * * * /bin/bash $HOME/campus/ops/server/keepalive.sh
-   30 2 * * * /bin/bash $HOME/campus/ops/server/backup.sh
-   45 2 * * * /bin/bash $HOME/campus/ops/server/restore_check.sh
-   ```
+7. Crontab ergänzen mit `bash ops/server/crontab_install.sh`: sichert die bestehende Crontab nach `backups/`, ergänzt nur Zeilen mit dem
+   Marker `# campus` (Keepalive alle 3 Minuten und bei Neustart; Backup 02:30 und **nur bei dessen Erfolg** die Wiederherstellungsprüfung in
+   derselben Zeile), ist idempotent und prüft danach, dass jede fremde Zeile unverändert vorhanden ist; sonst stellt es die Sicherung wieder her.
+   Keepalive, Backup, Wiederherstellungsprüfung und Deploy teilen sich eine `flock`-Sperre und überlappen nie.
+   Gemessen am 12.10.2026: Backup < 1 s (156 KB Dump), Wiederherstellungsprüfung 2 s in der isolierten Prüfdatenbank `campus_restorecheck`,
+   die danach gelöscht ist; der tägliche Lauf um 02:30 ist damit angemessen.
 8. Jenkins: Credential `university-deploy` (SSH Username with private key, Benutzer `u7031y_kaspar`, Schlüssel `~/.ssh/university_deploy` der Entwicklungsmaschine); Job `university main` deployt, die anderen Jobs nicht.
 
 ## Was der PHP-Proxy tut und was geprüft ist
@@ -59,6 +59,13 @@ Antwort-Header per Allowlist zurück (`Content-Type`, `Set-Cookie` mehrfach, `Lo
 Header), folgt Weiterleitungen nicht, setzt `X-Forwarded-Proto: https`. Die Sitzung bleibt ein `HttpOnly`-, `Secure`-, `SameSite=strict`-Cookie;
 CSRF und Rollen prüft weiterhin die API. Bei nicht erreichbarer API antwortet der Proxy mit 502 und einem Fehlerobjekt. Der Nachweis ist der
 End-to-End-Test über HTTPS (Anmeldung, Seiten, ein Command mit CSRF und Idempotency-Key).
+
+## Stand 12.10.2026 (Erstinstallation)
+
+Installiert und über `https://university.kaspair.ch` geprüft: Anmeldung, alle sieben Ansichten, CSRF-Durchsetzung (403 ohne Token), ein Command
+mit Token und Idempotency-Key über den Proxy, Abmeldung, Schutz ohne Sitzung. Dienste binden nur an 127.0.0.1, PostgreSQL ohne TCP.
+Workspace `ws-campus`, Konto der Forschungsleitung, Pilot-Policy `pilot-policy-1`, Mock-Katalog `pilot-mock-1`, ein Mandatsentwurf.
+Crontab ergänzt, Backup und Wiederherstellungsprüfung manuell bestanden. Build `1d14106`.
 
 ## Prüfen im Betrieb
 

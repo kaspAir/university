@@ -4,13 +4,15 @@ Idempotent: every step checks what exists. Creates: active routing policy (pilot
 authorizations for the mock providers, the fixture catalog (mock adapters, purpose fixture), and ONE mandate draft that waits for the
 reserved human decision in the UI. Nothing is approved here; nothing is labelled as research.
 
-Usage on the host:  .venv/bin/python ops/server/bootstrap_campus.py --workspace <id> --username <user> --password-file <file> [--port 8060]
+Usage on the host:  .venv/bin/python ops/server/bootstrap_campus.py --workspace <id> --username <user> --password-file <file> --base https://<host>
+(the session cookie is Secure, so the bootstrap talks to the public HTTPS entry point, which also exercises the proxy)
 """
 from __future__ import annotations
 
 import argparse
 import copy
 import json
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -18,7 +20,7 @@ from pathlib import Path
 import httpx
 import yaml
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(os.environ["CAMPUS_HOME"]) if os.environ.get("CAMPUS_HOME") else Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "packages" / "contracts"))
 from campus_contracts.validation import load_example  # noqa: E402
 
@@ -32,6 +34,9 @@ MANDATE_DOC = {
     "method_frame": "Quellenkartierung mit Gegenprüfung durch ein zweites Modell; alle Modelle sind Mock-Adapter, jede Ausgabe ist synthetisch.",
     "data_labels": ["public"], "access_rules": "Nur öffentliche, synthetische Fixtures; kein Export vertraulicher Daten.",
     "risk_rules": "Keine Personendaten, keine Produktivsysteme, keine Sandbox-Ausführung auf diesem Host.",
+    "review_requirements": "Jedes tragende Artefakt durch ein anderes kanonisches Modell prüfen (Art. 27); Mock-Modelle, synthetische Ergebnisse.",
+    "duration_days": 30,
+    "report_points": ["Tag 10: Kontrollweg durchlaufen", "Tag 30: Pilotbericht"],
 }
 
 
@@ -64,8 +69,9 @@ def main() -> int:
     ap.add_argument("--username", required=True)
     ap.add_argument("--password-file", required=True)
     ap.add_argument("--port", type=int, default=8060)
+    ap.add_argument("--base", default=None, help="z. B. https://university.kaspair.ch (Secure-Cookies brauchen HTTPS)")
     a = ap.parse_args()
-    api = Api(f"http://127.0.0.1:{a.port}")
+    api = Api(a.base or f"http://127.0.0.1:{a.port}")
     me = api.login(a.workspace, a.username, Path(a.password_file).read_text(encoding="utf-8").strip())
     print("angemeldet:", me["display_name"], me["roles"], "Leistungsebene", me["capability_level"])
 

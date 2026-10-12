@@ -5,6 +5,12 @@ set -u
 ENV_FILE="${CAMPUS_ENV_FILE:-$HOME/campus-data/secrets/campus.env}"
 set -a; . "$ENV_FILE"; set +a
 STAMP="$(date '+%Y%m%d-%H%M%S')"; DEST="$CAMPUS_DATA/backups"; LOG="$CAMPUS_DATA/logs/backup.log"; mkdir -p "$DEST"
+mkdir -p "$CAMPUS_DATA/run"
+if [ "${CAMPUS_LOCK_HELD:-0}" != "1" ]; then
+  exec 9>"$CAMPUS_DATA/run/keepalive.lock"
+  flock -w 300 9 || { printf '%s backup: Sperre nicht erhalten (keepalive/deploy aktiv)
+' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG"; exit 1; }
+fi
 PY="$CAMPUS_HOME/.venv/bin/python"; PG_BIN="$("$PY" -c 'import pgserver._commands as c; print(c.POSTGRES_BIN_PATH)')"
 OWNER_PW=$(sed -n 's#.*campus_owner:\([^@]*\)@.*#\1#p' "$ENV_FILE" | head -1)
 say() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }

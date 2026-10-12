@@ -17,7 +17,7 @@ PREV="$(cat "$CAMPUS_DATA/run/deployed.sha" 2>/dev/null || git rev-parse HEAD)"
 say "deploy $SHA (vorher $PREV)"
 git fetch -q origin
 git cat-file -e "$SHA^{commit}" || { say "Commit unbekannt: $SHA"; exit 1; }
-bash "$CAMPUS_HOME/ops/server/backup.sh" && say "Vor-Deploy-Backup erstellt (siehe backups/)" || say "WARNUNG: Backup vor Deploy fehlgeschlagen"
+CAMPUS_LOCK_HELD=1 bash "$CAMPUS_HOME/ops/server/backup.sh" && say "Vor-Deploy-Backup erstellt (siehe backups/)" || say "WARNUNG: Backup vor Deploy fehlgeschlagen"
 
 install_and_migrate() {
   git checkout -q --detach "$1"
@@ -28,11 +28,12 @@ install_and_migrate() {
   bash "$CTL" restart api >/dev/null 2>&1 || true
   bash "$CTL" restart worker >/dev/null 2>&1 || true
 }
-healthy_with() {  # $1 sha
+healthy_with() {  # $1 sha: the new build answers and the worker runs; readiness is governance state and only reported
   for _ in $(seq 1 30); do
-    if curl -fsS -m 5 "http://127.0.0.1:$CAMPUS_API_PORT/api/v1/health" 2>/dev/null | grep -q "\"build_sha\":\"$1\"" \
-       && curl -fsS -m 5 "http://127.0.0.1:$CAMPUS_API_PORT/api/v1/ready" 2>/dev/null | grep -q '"ready":true' \
-       && bash "$CTL" health worker >/dev/null 2>&1; then return 0; fi
+    if curl -fsS -m 5 "http://127.0.0.1:$CAMPUS_API_PORT/api/v1/health" 2>/dev/null | grep -q "\"build_sha\":\"$1\""        && bash "$CTL" health worker >/dev/null 2>&1; then
+      if curl -sS -m 5 "http://127.0.0.1:$CAMPUS_API_PORT/api/v1/ready" 2>/dev/null | grep -q '"ready":true'; then say "ready: ja"; else say "ready: nein (Governance-Zustand, kein Deploy-Fehler)"; fi
+      return 0
+    fi
     sleep 2
   done
   return 1
