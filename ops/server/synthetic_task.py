@@ -75,7 +75,7 @@ def main() -> int:
     review = api.cmd(f"/runs/{run['run_attempt_id']}/review", {})
     print("gegenprüfung:", review.get("review_report_id"), review.get("verdict"))
     dossier = api.cmd(f"/projects/{pid}/dossier", {})
-    print("dossier eingefroren:", dossier.get("artifact_id"), "sha256", str(dossier.get("sha256", ""))[:12])
+    print("dossier eingefroren:", dossier.get("artifact_version_id"), "sha256", str(dossier.get("sha256", ""))[:12], "synthetisch:", dossier.get("synthetic"))
     print(f"ansehen: {a.base}/campus/dossiers/{pid}")
     return 0
 
