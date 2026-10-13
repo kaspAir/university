@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Ergebnisse · Phronesis{% endblock %}
+{% block h1 %}Ergebnisse{% endblock %}
+{% block content %}
+<div class="meta" style="margin-top:8px">Eingefrorene Fassungen aller Dossiers mit Freigabestand. Eine Freigabe gilt nur für die Fassung mit genau diesem Hash (T08).
+  {% if mock %}<span class="tag tag-accent">Mockbetrieb: alle Fassungen sind synthetische Funktionsnachweise</span>{% endif %}</div>
+{% if rows %}
+<div class="tablewrap"><table class="table">
+  <thead><tr><th>Fassung</th><th>Dossier</th><th>Institut</th><th>Herkunft</th><th>Freigabe</th><th>Erstellt</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr class="link" onclick="location.href='/campus/artefakte/{{ r.artifact_version_id }}'">
+    <td class="id"><a href="/campus/artefakte/{{ r.artifact_version_id }}">{{ r.kind }} v{{ r.version }}</a><br>{{ r.sha256[:12] }}…</td>
+    <td style="font-weight:600">{{ r.project_title }}</td>
+    <td style="font-size:12px">{{ r.institute }}</td>
+    <td>{% if r.synthetic %}<span class="tag tag-accent">synthetisch</span>{% else %}<span class="tag tag-neutral">{{ r.producer }}</span>{% endif %}</td>
+    <td>{% if not r.approval %}<span class="tag tag-neutral">offen</span>{% elif r.approval.basis_withdrawn_after_approval %}<span class="tag tag-accent">Grundlage zurückgezogen</span>{% elif not r.approval.valid_for_current %}<span class="tag tag-accent">Freigabe gilt für ältere Fassung</span>{% else %}<span class="tag tag-outline">{{ r.approval.option|option_label }}</span>{% endif %}
+      {% if r.releases %} · {{ r.releases|length }} Freigabeversuch(e) extern{% endif %}</td>
+    <td class="nowrap" style="font-size:12px">{{ r.created_at|dt }}</td>
+  </tr>
+  {% endfor %}
+  </tbody></table></div>
+{% else %}<div class="empty">Noch keine eingefrorene Fassung. Ein Dossier entsteht am Ende eines Ablaufs oder über «Dossier einfrieren» im Auftrag.</div>{% endif %}
+{% endblock %}

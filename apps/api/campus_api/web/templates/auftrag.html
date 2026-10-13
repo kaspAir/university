@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% set m = mandate %}
+{% block title %}Auftrag · {{ m.document.title }}{% endblock %}
+{% block h1class %}dossier{% endblock %}
+{% block h1 %}{{ m.document.title }}{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/campus/dossiers">Dossiers</a> › Auftrag {{ m.mandate_id }} v{{ m.version }}</div>
+<div class="context">Mandat <span class="tag {% if m.state == 'approved' %}tag-outline{% elif m.state == 'draft' %}tag-accent{% else %}tag-neutral{% endif %}">{{ m.state }}</span> · Budget {{ m.budget }} · Hash {{ m.document_hash[:12] }}…
+  {% if synthetic %} · <span class="tag tag-accent">synthetischer Funktionsnachweis</span>{% endif %}</div>
+
+<div class="axes" style="grid-template-columns: 2fr 1fr">
+  <div class="axis"><div class="alabel">Nächster Schritt</div><div class="aval">{{ step.title }}</div><div class="anote">{{ step.hint }}</div></div>
+  <div class="axis"><div class="alabel">Arbeitsstand</div><div class="aval">{{ progress.done }} von {{ progress.total }}</div><div class="anote">{% for s in progress.steps %}<span class="{% if s.done %}c-observation{% else %}c-hypothesis{% endif %}">{{ loop.index }} {{ s.label }}</span>{% if not loop.last %} · {% endif %}{% endfor %}</div></div>
+</div>
+
+<div class="grid-2-300" style="margin-top:22px">
+  <div>
+    <div class="kicker">Frage</div>
+    <div class="question">{{ m.document.question_space }}</div>
+    <div class="protocol-line">Erkenntnisziel: {{ m.document.knowledge_goal }} · Methodenrahmen: {{ m.document.method_frame }} · Dauer {{ m.document.duration_days }} Tage · Berichtspunkte: {{ m.document.report_points|join(", ") }}</div>
+
+    {% if step.action == "decide" %}
+      <div class="label">Entscheid</div>
+      {% if can_decide %}
+      <div class="cards" style="margin-top:0"><div class="card" data-decision data-endpoint="/mandates/{{ m.mandate_version_id }}/approve" data-extra='{"expected_version": {{ m.version }}}' data-kind="Mandat" data-title="{{ m.document.title }}" data-meta="Fassung {{ m.version }} · Budget {{ m.budget }}" data-question="{{ m.document.question_space }}" data-after="/campus/auftrag/{{ m.mandate_version_id }}">
+        <div class="row1"><span class="kicker">Mandat · vorbehaltener Entscheid (Art. 11)</span></div>
+        <div class="title">Mandatsfassung {{ m.version }} entscheiden</div>
+        <div class="open">Annehmen, begrenzt annehmen (mit Auflage), überarbeiten oder ablehnen. Keine Option ist vorausgewählt.</div>
+        <div class="actions"><button class="btn btn-primary" data-decide>Entscheiden</button></div>
+      </div></div>
+      {% include "_decision_dialog.html" %}
+      {% else %}<div class="empty">Der Entscheid gehört der Forschungsleitung.</div>{% endif %}
+    {% endif %}
+
+    {% if step.action == "project" %}
+      <div class="label">Projekt und Aufgabe</div>
+      {% if profiles %}
+      <form data-journey="project" data-mandate="{{ m.mandate_version_id }}" data-policy="{{ policy_revision }}" onsubmit="return false">
+        <label class="label" style="margin-top:0">Institut</label>
+        <select class="input" name="institute_id">{% for i in institutes %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}</select>
+        <label class="label">Projekttitel</label><input class="input" name="title" value="{{ m.document.title }}" required>
+        <label class="label">Teilbudget (CHF, aus dem Mandat {{ m.budget }})</label><input class="input" name="budget" value="10.00" required>
+        <label class="label">Forscherprofil</label>
+        <select class="input" name="profile">{% for p in profiles %}<option value="{{ p.ref }}" data-profile='{{ p|tojson }}'>{{ p.ref }} · {{ p.primary_specialization }} · {{ p.operating_status }} / {{ p.qualification_status }}</option>{% endfor %}</select>
+        <div style="font-size:12px;color:var(--color-neutral-700);margin-top:8px">Aufgabe: Klasse {{ task_defaults.task_class }}, Rolle {{ task_defaults.role }}, Datenklasse {{ task_defaults.data_labels|join(", ") }}, Rechte {{ task_defaults.required_tool_scopes|join(", ") }}, Aufgabenbudget 1.00 CHF. Ein nicht qualifiziertes Profil läuft im Modus sandbox_experiment (Art. 26).</div>
+        <div data-f="err" class="error-block hidden"></div>
+        <div style="margin-top:14px"><button class="btn btn-primary" data-submit>Projekt und Aufgabe anlegen</button></div>
+      </form>
+      {% else %}<div class="empty">Kein registriertes Forscherprofil. Profile entstehen aus einem Bedarf über das Register (<code>POST /api/v1/needs</code>, <code>/agents/candidates</code>).</div>{% endif %}
+    {% endif %}
+
+    {% if step.action == "workflow" and task %}
+      <div class="label">Ablauf</div>
+      <form data-journey="workflow" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}" onsubmit="return false">
+        <label class="label" style="margin-top:0">Öffentliche Quellen (eine URL je Zeile, optional)</label>
+        <textarea class="input" name="source_urls" rows="3" placeholder="https://…"></textarea>
+        <div style="font-size:12px;color:var(--color-neutral-700);margin-top:8px">Quellen → Route (Selector mit Kernprüfung) → Erzeugung → Gegenprüfung durch ein anderes Modell → Dossier. Interne und private Ziele werden blockiert; eine blockierte Quelle ist eine Zugangslücke, kein Abbruch.</div>
+        <div data-f="err" class="error-block hidden"></div>
+        <div style="margin-top:14px"><button class="btn btn-primary" data-submit>Ablauf starten</button></div>
+      </form>
+    {% endif %}
+
+    {% if step.action == "watch" and workflow %}
+      <div class="label">Ablauf</div>
+      <div class="finding" data-workflow-id="{{ workflow.id }}">Ablauf <span class="id">{{ workflow.id }}</span> · Stand: <strong data-f="status">wird gelesen …</strong> <span data-f="stage"></span></div>
+    {% endif %}
+
+    {% if step.action == "freeze" and project %}
+      <div class="label">Dossier</div>
+      <button class="btn btn-primary" data-action="freeze-dossier" data-project="{{ project.project_id }}">Dossier einfrieren</button>
+      <div data-f="err" class="error-block hidden"></div>
+    {% endif %}
+
+    {% if step.action == "read" and latest_artifact %}
+      <div class="label">Ergebnis</div>
+      <a class="btn btn-primary" href="/campus/artefakte/{{ latest_artifact.artifact_version_id }}">Dossier lesen und beurteilen</a>
+    {% endif %}
+  </div>
+  <aside class="aside">
+    <h4>Verlauf</h4>
+    <div class="kv">
+      <span class="k">Mandat</span><span>{{ m.state }} · {{ m.created_at|dt }}</span>
+      {% for d in m.decisions %}<span class="k">Entscheid</span><span>{{ d.option|option_label }} · {{ d.decided_at|dt }}</span>{% endfor %}
+      {% if project %}<span class="k">Projekt</span><span><a href="/campus/dossiers/{{ project.project_id }}">{{ project.project_id }}</a> · {{ project.work_state }}</span>{% endif %}
+      {% if task %}<span class="k">Aufgabe</span><span>{{ task.task_id }} · {{ task.state }}</span>{% endif %}
+      {% for w in workflows %}<span class="k">Ablauf</span><span>{{ w.id }} · {{ w.created_at|dt }}</span>{% endfor %}
+      {% for r in runs %}<span class="k">Lauf</span><span>{{ r.run_attempt_id }} · {{ r.end_reason or r.state }}</span>{% endfor %}
+      {% for v in reviews %}<span class="k">Gegenprüfung</span><span>{{ v.verdict }} · {{ v.reviewer_canonical_model_id }}</span>{% endfor %}
+      {% for a in artifacts %}<span class="k">{{ a.kind }} v{{ a.version }}</span><span><a href="/campus/artefakte/{{ a.artifact_version_id }}">{{ a.sha256[:12] }}…</a>{% if a.approval %} · {{ a.approval.option|option_label }}{% endif %}</span>{% endfor %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

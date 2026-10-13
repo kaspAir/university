@@ -18,6 +18,7 @@ from campus_domain.money import Money
 from campus_infra import budget_service
 from campus_infra.audit import Actor, record
 from campus_infra.models import (
+    ArtifactVersion,
     AuditEvent,
     HumanDecision,
     Institute,
@@ -28,6 +29,7 @@ from campus_infra.models import (
     Source,
     Task,
     User,
+    WorkflowRun,
     Workspace,
 )
 
@@ -45,6 +47,7 @@ from ..errors import trace_id
 from ..routers import governance, health
 from ..security import SESSION_COOKIE, load_session, revoke_session
 from ..settings import get_settings
+from .steps import MANDATE_DEFAULTS, TASK_DEFAULTS, next_step
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -114,8 +117,9 @@ def _counters(db: Session, actor: Actor) -> dict:
     sources = db.execute(select(func.count()).select_from(Source).join(Project, Project.id == Source.project_id).where(Project.workspace_id == ws)).scalar() or 0
     catalog = governance.catalog_status(actor=actor, db=db)
     models = sum(1 for d in catalog["deployments"] if d.get("enabled"))
-    return {"dossiers": projects, "register": len(inv["agents"]) + len(inv["skills"]), "modelle": models, "pruefung": open_decisions,
-            "bibliothek": sources, "betrieb": None}
+    artifacts = db.execute(select(func.count()).select_from(ArtifactVersion).where(ArtifactVersion.workspace_id == ws)).scalar() or 0
+    return {"dossiers": projects, "ergebnisse": artifacts, "register": len(inv["agents"]) + len(inv["skills"]), "modelle": models,
+            "pruefung": open_decisions, "bibliothek": sources, "betrieb": None}
 
 
 def _ctx(request: Request, db: Session, actor: Actor, view: str, **extra) -> dict:
@@ -126,7 +130,7 @@ def _ctx(request: Request, db: Session, actor: Actor, view: str, **extra) -> dic
             "capability_level": settings.capability_level, "mock": settings.capability_level == "development_mock",
             "now": fmt_dt(datetime.now(UTC)), "csrf": request.state.session_row.csrf_token, "counters": _counters(db, actor),
             "can_stop": bool({"research_director", "integrity_officer"} & {r.value for r in actor.roles}),
-            "can_decide": "research_director" in {r.value for r in actor.roles}, **extra}
+            "can_decide": "research_director" in {r.value for r in actor.roles}, "task_defaults_json": json.dumps(TASK_DEFAULTS), **extra}
 
 
 def _render(name: str, ctx: dict) -> HTMLResponse:
@@ -284,8 +288,86 @@ def dossier(project_id: str, request: Request, tab: str = "frage", actor: Actor 
             ("laeufe", "Läufe", len(runs)), ("fassungen", "Fassungen", len(artifacts))]
     if tab not in {t[0] for t in tabs}:
         tab = "frage"
+    ws = db.get(Workspace, actor.workspace_id)
+    workflows = db.execute(select(WorkflowRun).where(WorkflowRun.project_id == project_id).order_by(WorkflowRun.created_at)).scalars().all()
+    step = next_step(stopped=bool(ws.stopped), mandate_state=doc["mandate"]["state"], projects=1, tasks=doc["protocol"], runs=doc["runs"],
+                     reviews=doc["reviews"], artifacts=artifacts, workflows=[{"status": None} for _ in workflows] if not doc["runs"] else [])
     return _render("dossier.html", _ctx(request, db, actor, "dossiers", doc=doc, artifacts=artifacts, runs=runs, groups=groups, tabs=tabs, tab=tab,
-                                        institute=institute, last_run=runs[-1] if runs else None))
+                                        institute=institute, last_run=runs[-1] if runs else None, step=step, workflows=workflows,
+                                        mandate_version_id=doc["mandate"]["mandate_version_id"]))
+
+
+# ---------------------------------------------------------------- research order journey (Mandat -> Entscheid -> Projekt/Aufgabe -> Ablauf -> Ergebnis)
+
+@router.get("/auftrag/neu", response_class=HTMLResponse)
+def auftrag_neu(request: Request, actor: Actor = Depends(web_actor), db: Session = Depends(get_db)):
+    return _render("auftrag_neu.html", _ctx(request, db, actor, "dossiers", defaults=MANDATE_DEFAULTS))
+
+
+@router.get("/auftrag/{mandate_version_id}", response_class=HTMLResponse)
+def auftrag(mandate_version_id: str, request: Request, actor: Actor = Depends(web_actor), db: Session = Depends(get_db)):
+    mandate = governance.get_mandate(mandate_version_id, actor=actor, db=db)
+    ws = db.get(Workspace, actor.workspace_id)
+    projects = [p for p in governance_list_projects(db, actor) if p["mandate_version_id"] == mandate_version_id]
+    project = projects[-1] if projects else None
+    tasks, runs, reviews, artifacts, workflows, synthetic = [], [], [], [], [], False
+    if project:
+        doc = services_dossier.dossier_document(db, actor=actor, project_id=project["project_id"])
+        tasks, runs, reviews = doc["protocol"], doc["runs"], doc["reviews"]
+        synthetic = doc["declarations"]["synthetic_content"]
+        artifacts = services_dossier.project_artifacts(db, actor=actor, project_id=project["project_id"])
+        workflows = db.execute(select(WorkflowRun).where(WorkflowRun.project_id == project["project_id"]).order_by(WorkflowRun.created_at)).scalars().all()
+    step = next_step(stopped=bool(ws.stopped), mandate_state=mandate["state"], projects=len(projects), tasks=tasks, runs=runs, reviews=reviews,
+                     artifacts=artifacts, workflows=[{"status": None} for _ in workflows] if not runs else [])
+    labels = [("Mandat", mandate["state"] == "approved"), ("Projekt und Aufgabe", bool(tasks)), ("Ablauf", bool(runs) or bool(workflows)),
+              ("Gegenprüfung", bool(reviews)), ("Dossier", any(a["kind"] == "dossier" for a in artifacts)),
+              ("Ergebnisfreigabe", step["code"] == "approved")]
+    progress = {"steps": [{"label": lbl, "done": done} for lbl, done in labels], "done": sum(1 for _, d in labels if d), "total": len(labels)}
+    from fastapi.encoders import jsonable_encoder
+
+    profiles = jsonable_encoder([a for a in services_research.inventory(db, actor.workspace_id)["agents"] if a["operating_status"] != "archived"])
+    policies = governance.list_policies(actor=actor, db=db)
+    policy_revision = next((p["revision"] for p in policies if p["state"] == "active"), "")
+    institutes = db.execute(select(Institute).where(Institute.workspace_id == actor.workspace_id).order_by(Institute.sort_order)).scalars().all()
+    dossiers = [a for a in artifacts if a["kind"] == "dossier"]
+    return _render("auftrag.html", _ctx(request, db, actor, "dossiers", mandate=mandate, project=project, task=tasks[-1] if tasks else None, runs=runs,
+                                        reviews=reviews, artifacts=artifacts, workflows=workflows, workflow=workflows[-1] if workflows else None, step=step,
+                                        progress=progress, profiles=profiles, policy_revision=policy_revision, institutes=institutes, synthetic=synthetic,
+                                        task_defaults=TASK_DEFAULTS, latest_artifact=dossiers[-1] if dossiers else None))
+
+
+def governance_list_projects(db: Session, actor: Actor) -> list[dict]:
+    from ..routers import research
+
+    return research.list_projects(institute_id=None, actor=actor, db=db)
+
+
+@router.get("/ergebnisse", response_class=HTMLResponse)
+def ergebnisse(request: Request, actor: Actor = Depends(web_actor), db: Session = Depends(get_db)):
+    institutes = {i.id: i.name for i in db.execute(select(Institute).where(Institute.workspace_id == actor.workspace_id)).scalars().all()}
+    rows = []
+    for p in db.execute(select(Project).where(Project.workspace_id == actor.workspace_id)).scalars().all():
+        for a in services_dossier.project_artifacts(db, actor=actor, project_id=p.id):
+            art = db.get(ArtifactVersion, a["artifact_version_id"])
+            rows.append({**a, "project_id": p.id, "project_title": p.title, "institute": institutes.get(p.institute_id, p.institute_id),
+                         "producer": art.producer_canonical_model_id if art else "–"})
+    rows.sort(key=lambda r: r["created_at"], reverse=True)
+    return _render("ergebnisse.html", _ctx(request, db, actor, "ergebnisse", rows=rows))
+
+
+@router.get("/artefakte/{artifact_id}", response_class=HTMLResponse)
+def artefakt(artifact_id: str, request: Request, actor: Actor = Depends(web_actor), db: Session = Depends(get_db)):
+    art = db.get(ArtifactVersion, artifact_id)
+    if art is None or art.workspace_id != actor.workspace_id:
+        raise CampusError(ErrorCode.NOT_FOUND, "Fassung nicht gefunden")
+    project = db.get(Project, art.project_id) if art.project_id else None
+    entry = next((e for e in services_dossier.project_artifacts(db, actor=actor, project_id=art.project_id) if e["artifact_version_id"] == art.id), None) \
+        if art.project_id else None
+    entry = entry or {"approval": None, "releases": []}
+    ap = entry.get("approval")
+    entry["approval_decidable"] = not (ap and ap.get("valid_for_current") and not ap.get("basis_withdrawn_after_approval"))
+    return _render("artefakt.html", _ctx(request, db, actor, "ergebnisse", artifact=art, project=project, entry=entry,
+                                         artifact_json=json.dumps(art.content, indent=2, ensure_ascii=False, default=str)))
 
 
 # ---------------------------------------------------------------- register, models, review, library, operations

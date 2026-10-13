@@ -14,6 +14,10 @@
   <div class="axis"><div class="alabel">Freigabe</div><div class="aval">{{ ax.release }}</div><div class="anote">{% if ax.blocking.open_findings %}blockiert durch Einwände {{ ax.blocking.open_findings|join(", ") }}{% elif ax.blocking.open_reassessments %}blockiert durch Neubewertungen{% else %}{{ artifacts|length }} Fassung(en); Freigabe nur je Fassung (Hash){% endif %}</div></div>
 </div>
 
+<div class="axes" style="grid-template-columns: 1fr; margin-top:12px; border-top:0">
+  <div class="axis" style="border-right:0; padding-left:0"><div class="alabel">Nächster Schritt</div><div class="aval">{{ step.title }}</div>
+    <div class="anote">{{ step.hint }} · <a href="/campus/auftrag/{{ mandate_version_id }}">zum Auftrag</a>{% for w in workflows %} · Ablauf <span data-workflow-id="{{ w.id }}"><span class="id">{{ w.id }}</span>: <strong data-f="status">…</strong> <span data-f="stage"></span></span>{% endfor %}</div></div>
+</div>
 <div class="tabs">{% for key, label, n in tabs %}<a href="?tab={{ key }}" class="{% if tab == key %}active{% endif %}">{{ label }}{% if n is not none %} {{ n }}{% endif %}</a>{% endfor %}</div>
 <div class="tabbody">
 {% if tab == "frage" %}

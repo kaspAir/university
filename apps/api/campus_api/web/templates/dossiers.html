@@ -2,7 +2,8 @@
 {% block title %}Dossiers · Phronesis{% endblock %}
 {% block h1 %}Dossiers{% endblock %}
 {% block content %}
-<div class="meta" style="margin-top:8px">{% if inst_name %}Filter: {{ inst_name }} · <a href="/campus/dossiers">alle Institute</a> · {% endif %}{{ rows|length }} Dossier{% if rows|length != 1 %}s{% endif %}</div>
+<div class="toolbar"><div class="meta">{% if inst_name %}Filter: {{ inst_name }} · <a href="/campus/dossiers">alle Institute</a> · {% endif %}{{ rows|length }} Dossier{% if rows|length != 1 %}s{% endif %}</div>
+  {% if can_decide %}<a class="btn btn-primary" href="/campus/auftrag/neu">Neuer Forschungsauftrag</a>{% endif %}</div>
 {% if rows %}
 <div class="tablewrap"><table class="table">
   <thead><tr><th>ID</th><th>Titel</th><th>Institut</th><th>Arbeitsstand</th><th>Aussagen</th><th>Freigabe</th><th>Mittel</th></tr></thead>

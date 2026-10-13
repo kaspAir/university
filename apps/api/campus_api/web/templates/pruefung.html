@@ -8,12 +8,12 @@
 {% if open_mandates %}
 <div class="cards" style="margin-top:0">
   {% for m in open_mandates %}
-  <div class="card" data-decision data-object-id="{{ m.mandate_version_id }}" data-version="{{ m.version }}" data-title="{{ m.document.title }}" data-budget="{{ m.budget }}" data-question="{{ m.document.question_space }}">
+  <div class="card" data-decision data-endpoint="/mandates/{{ m.mandate_version_id }}/approve" data-extra='{"expected_version": {{ m.version }}}' data-kind="Mandat" data-title="{{ m.document.title }}" data-meta="Fassung {{ m.version }} · Budget {{ m.budget }}" data-question="{{ m.document.question_space }}" data-after="/campus/auftrag/{{ m.mandate_version_id }}">
     <div class="row1"><span class="kicker">Mandat · vorbehaltener Entscheid (Art. 11)</span><span class="due">{{ m.document.decision_due or "ohne Frist" }}</span></div>
     <div class="title">{{ m.document.title }}</div>
     <div class="cmeta">{{ m.mandate_id }} · Fassung {{ m.version }} · Budget {{ m.budget }} · Hash {{ m.document_hash[:12] }}…</div>
     <div class="open">{{ m.document.question_space }}<br><span style="color:var(--color-neutral-700)">Ziel: {{ m.document.knowledge_goal }}</span></div>
-    <div class="actions">{% if can_decide %}<button class="btn btn-primary" data-decide>Entscheiden</button>{% else %}<span class="tag tag-neutral">nur Forschungsleitung</span>{% endif %}</div>
+    <div class="actions">{% if can_decide %}<button class="btn btn-primary" data-decide>Entscheiden</button>{% else %}<span class="tag tag-neutral">nur Forschungsleitung</span>{% endif %}<a class="btn btn-secondary" href="/campus/auftrag/{{ m.mandate_version_id }}">Auftrag</a></div>
   </div>
   {% endfor %}
 </div>
@@ -22,7 +22,7 @@
 
 <div class="label">Mandate</div>
 {% if mandates %}<div class="tablewrap"><table class="table"><thead><tr><th>Mandat</th><th>Fassung</th><th>Titel</th><th>Zustand</th><th>Budget</th><th>Hash</th></tr></thead><tbody>
-  {% for m in mandates %}<tr><td class="id">{{ m.mandate_id }}</td><td>{{ m.version }}</td><td style="font-weight:600">{{ m.document.title }}</td><td><span class="tag {% if m.state == 'approved' %}tag-outline{% elif m.state == 'draft' %}tag-accent{% else %}tag-neutral{% endif %}">{{ m.state }}</span></td><td class="nowrap">{{ m.budget }}</td><td class="id">{{ m.document_hash[:12] }}…</td></tr>{% endfor %}
+  {% for m in mandates %}<tr class="link" onclick="location.href='/campus/auftrag/{{ m.mandate_version_id }}'"><td class="id">{{ m.mandate_id }}</td><td>{{ m.version }}</td><td style="font-weight:600">{{ m.document.title }}</td><td><span class="tag {% if m.state == 'approved' %}tag-outline{% elif m.state == 'draft' %}tag-accent{% else %}tag-neutral{% endif %}">{{ m.state }}</span></td><td class="nowrap">{{ m.budget }}</td><td class="id">{{ m.document_hash[:12] }}…</td></tr>{% endfor %}
 </tbody></table></div>{% else %}<div class="empty">Noch kein Mandat.</div>{% endif %}
 
 <div class="label">Protokollierte Entscheide</div>

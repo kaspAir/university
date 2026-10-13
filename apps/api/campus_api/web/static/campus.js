@@ -32,15 +32,17 @@
     try { await command("/workspace/resume", { reason }); location.reload(); } catch (e) { showError(e); }
   }));
 
-  /* Reserved decision (Art. 11): four equal options, none preselected, reasons mandatory, conditions for limited acceptance. */
+  /* Reserved decision (Art. 11): four equal options, none preselected, reasons mandatory, conditions for limited acceptance.
+     Generic: the card names the endpoint (mandate approval or result approval) and the binding (expected_version / expected_sha256). */
   const backdrop = document.getElementById("decision-dialog");
   if (backdrop) {
     const dlg = backdrop.querySelector(".dialog");
     let current = null;
     function open(card) {
       current = card.dataset;
+      dlg.querySelector("[data-f=kind]").textContent = current.kind || "Entscheid";
       dlg.querySelector("[data-f=title]").textContent = current.title;
-      dlg.querySelector("[data-f=meta]").textContent = "Mandat " + current.objectId + " · Fassung " + current.version + " · " + current.budget;
+      dlg.querySelector("[data-f=meta]").textContent = current.meta || "";
       dlg.querySelector("[data-f=question]").textContent = current.question || "";
       dlg.querySelectorAll("textarea, input").forEach(el => { el.value = ""; });
       dlg.querySelector("[data-f=conditions]").classList.add("hidden");
@@ -66,14 +68,70 @@
         conditions.push({ text, responsible, due });
       }
       const alternatives = Object.keys(OPTIONS).filter(o => o !== option).map(o => OPTIONS[o]);
+      const extra = current.extra ? JSON.parse(current.extra) : {};
       try {
-        const res = await command("/mandates/" + current.objectId + "/approve", {
-          expected_version: Number(current.version), option, rationale, alternatives_presented: alternatives,
-          remaining_objections: objections, consequences, conditions });
+        await command(current.endpoint, Object.assign({ option, rationale, alternatives_presented: alternatives, remaining_objections: objections, consequences, conditions }, extra));
         close();
-        location.href = "/campus/pruefung?decided=" + encodeURIComponent(res.decision_id || res.mandate_version_id || "");
+        location.href = current.after || location.pathname;
       } catch (e) { err.textContent = e.message; err.classList.remove("hidden"); }
     }));
     dlg.querySelector("[data-option=accept_limited]").addEventListener("mouseenter", () => dlg.querySelector("[data-f=conditions]").classList.remove("hidden"));
   }
+
+  /* Research order journey: each step is one or two existing commands; the page reloads and shows the next step from server state. */
+  function val(form, name) { const el = form.querySelector("[name=" + name + "]"); return el ? el.value.trim() : ""; }
+  function lines(text) { return text.split("\n").map(s => s.trim()).filter(Boolean); }
+  function fail(form, e) { const err = form.querySelector("[data-f=err]"); err.textContent = e.message; err.classList.remove("hidden"); }
+  const mandateForm = document.querySelector("[data-journey=mandate]");
+  if (mandateForm) mandateForm.querySelector("[data-submit]").addEventListener("click", async () => {
+    const document_ = {
+      title: val(mandateForm, "title"), question_space: val(mandateForm, "question_space"), knowledge_goal: val(mandateForm, "knowledge_goal"),
+      method_frame: val(mandateForm, "method_frame"), data_labels: ["public"], access_rules: val(mandateForm, "access_rules"), risk_rules: val(mandateForm, "risk_rules"),
+      review_requirements: val(mandateForm, "review_requirements"), duration_days: Number(val(mandateForm, "duration_days")),
+      report_points: lines(val(mandateForm, "report_points")), responsible_user_id: document.body.dataset.userId };
+    try {
+      const res = await command("/mandates", { document: document_, budget: val(mandateForm, "budget"), currency: "CHF" });
+      location.href = "/campus/auftrag/" + res.mandate_version_id;
+    } catch (e) { fail(mandateForm, e); }
+  });
+  const projectForm = document.querySelector("[data-journey=project]");
+  if (projectForm) projectForm.querySelector("[data-submit]").addEventListener("click", async () => {
+    const sel = projectForm.querySelector("[name=profile]"); const profile = JSON.parse(sel.options[sel.selectedIndex].dataset.profile);
+    try {
+      const project = await command("/projects", { mandate_version_id: projectForm.dataset.mandate, institute_id: val(projectForm, "institute_id"),
+                                                   title: val(projectForm, "title"), budget: val(projectForm, "budget") });
+      const need = Object.assign({}, window.CAMPUS_TASK_DEFAULTS, {
+        agent_profile_version_ref: profile.ref, skill_version_refs: profile.skill_version_refs || [],
+        qualification_mode: (profile.qualification_status === "task_qualified" && (profile.qualified_task_classes || []).includes(window.CAMPUS_TASK_DEFAULTS.task_class)) ? "qualified" : "sandbox_experiment",
+        routing_policy_ref: projectForm.dataset.policy });
+      await command("/projects/" + project.project_id + "/tasks", { task_need: need, budget: "1.00" });
+      location.reload();
+    } catch (e) { fail(projectForm, e); }
+  });
+  const workflowForm = document.querySelector("[data-journey=workflow]");
+  if (workflowForm) workflowForm.querySelector("[data-submit]").addEventListener("click", async () => {
+    try {
+      await command("/tasks/" + workflowForm.dataset.task + "/workflow", { source_urls: lines(val(workflowForm, "source_urls")), selection_mode: "llm" });
+      location.reload();
+    } catch (e) { fail(workflowForm, e); }
+  });
+  document.querySelectorAll("[data-action=freeze-dossier]").forEach(btn => btn.addEventListener("click", async () => {
+    try { await command("/projects/" + btn.dataset.project + "/dossier", {}); location.reload(); }
+    catch (e) { const err = btn.parentElement.querySelector("[data-f=err]"); if (err) { err.textContent = e.message; err.classList.remove("hidden"); } else showError(e); }
+  }));
+  /* Workflow status is read from the durable workflow service; the page reloads once the run has ended. */
+  document.querySelectorAll("[data-workflow-id]").forEach(el => {
+    const id = el.dataset.workflowId; let ended = false;
+    async function tick() {
+      try {
+        const res = await fetch("/api/v1/workflows/" + id, { credentials: "same-origin" });
+        const data = await res.json();
+        el.querySelector("[data-f=status]").textContent = data.status || "unbekannt";
+        el.querySelector("[data-f=stage]").textContent = data.stage ? "· Stufe " + data.stage : "";
+        if (data.status && data.status !== "RUNNING" && !ended) { ended = true; setTimeout(() => location.reload(), 1500); return; }
+      } catch (e) { el.querySelector("[data-f=status]").textContent = "Ablaufdienst nicht erreichbar"; }
+      if (!ended) setTimeout(tick, 5000);
+    }
+    tick();
+  });
 })();

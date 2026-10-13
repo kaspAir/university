@@ -83,26 +83,20 @@ pipeline {
         }
 
         stage('Deploy') {
+            // Userland pilot on the shared Infomaniak host (ADR-0015): only the branch main deploys, from any job that builds it.
+            // deploy.sh: backup -> checkout -> deps -> migrations -> restart -> health with the new build sha; code rollback on failure.
+            // The key comes from the credential 'university-deploy' via credentials-binding (masked in logs); no secret in the repo.
             when {
                 anyOf {
-                    expression { env.JOB_NAME.contains('test') }
-                    expression { env.JOB_NAME.contains('integration') }
-                    expression { env.JOB_NAME.contains('main') }
+                    branch 'main'
+                    expression { (env.GIT_BRANCH ?: '').endsWith('main') }
                 }
             }
             steps {
-                script {
-                    if (!env.JOB_NAME.contains('main')) {
-                        echo "Kein Deploy-Ziel für diesen Job (nur main → university.kaspair.ch, Pilot im Userland, docs/BETRIEB_SERVER.md)."
-                        return
-                    }
-                }
-                // Userland pilot on the shared Infomaniak host (ADR-0015). deploy.sh: backup → checkout → deps → migrations → restart → health,
-                // rollback to the previous commit on failure. Prints no secrets; the env file stays on the host.
-                sshagent(credentials: ['university-deploy']) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'university-deploy', keyFileVariable: 'DEPLOY_KEY', usernameVariable: 'DEPLOY_USER')]) {
                     sh '''
                         set -eu
-                        ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes u7031y_kaspar@83.228.238.194                             "bash ~/campus/ops/server/deploy.sh ${GIT_COMMIT}"
+                        ssh -i "$DEPLOY_KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes                             "$DEPLOY_USER@83.228.238.194" "bash ~/campus/ops/server/deploy.sh ${GIT_COMMIT}"
                         # success criterion over the public HTTPS entry point: the deployed build answers
                         curl -fsS --max-time 20 https://university.kaspair.ch/api/v1/health | grep -q "\"build_sha\":\"${GIT_COMMIT}\""
                         curl -sS --max-time 20 https://university.kaspair.ch/api/v1/ready || true

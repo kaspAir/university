@@ -287,6 +287,7 @@ def inventory(db: Session, workspace_id: str) -> dict:
                     "primary_specialization": a.document["primary_specialization"], "operating_status": a.operating_status,
                     "qualification_status": a.qualification_status, "need_record_ref": a.document["need_record_ref"],
                     "creation_reason": a.document["creation_reason"], "alternatives_considered": a.document["alternatives_considered"],
+                    "skill_version_refs": list(a.document.get("skill_version_refs", [])), "qualified_task_classes": list(a.qualified_task_classes or []),
                     "runs": runs_by_agent.get(a.id, 0), "created_at": a.created_at} for a in agents],
         "skills": [{"id": s.id, "ref": s.ref, "skill_id": s.skill_id, "version": s.version, "purpose": s.document["purpose"],
                     "operating_status": s.operating_status, "qualification_refs": s.document["qualification_refs"],

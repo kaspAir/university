@@ -2,16 +2,17 @@
 {% block title %}Campus · Phronesis{% endblock %}
 {% block h1 %}{{ headline }}{% endblock %}
 {% block content %}
+{% if can_decide %}<div class="toolbar" style="margin-top:14px"><a class="btn btn-primary" href="/campus/auftrag/neu">Neuer Forschungsauftrag</a></div>{% endif %}
 {% if decisions %}
 <div class="label">Wartet auf mich</div>
 <div class="cards">
   {% for d in decisions %}
-  <div class="card" data-decision data-object-id="{{ d.object_id }}" data-version="{{ d.version }}" data-title="{{ d.title }}" data-budget="{{ d.budget }}" data-question="{{ d.question_space or '' }}">
+  <div class="card" data-decision data-endpoint="/mandates/{{ d.object_id }}/approve" data-extra='{"expected_version": {{ d.version }}}' data-kind="Mandat" data-title="{{ d.title }}" data-meta="Fassung {{ d.version }} · Budget {{ d.budget }}" data-question="{{ d.question_space or '' }}" data-after="/campus/auftrag/{{ d.object_id }}">
     <div class="row1"><span class="kicker">{{ d.kind }} · vorbehaltener Entscheid (Art. 11)</span><span class="due">{% if d.due %}fällig {{ d.due }}{% else %}ohne Frist{% endif %}</span></div>
     <div class="title">{{ d.title }}</div>
     <div class="cmeta">Fassung {{ d.version }} · Budget {{ d.budget }}</div>
     <div class="open">{{ d.knowledge_goal or d.question_space or "Mandatsentwurf" }}</div>
-    <div class="actions">{% if can_decide %}<button class="btn btn-primary" data-decide>Entscheiden</button>{% endif %}<a class="btn btn-secondary" href="/campus/pruefung">Prüfung</a></div>
+    <div class="actions">{% if can_decide %}<button class="btn btn-primary" data-decide>Entscheiden</button>{% endif %}<a class="btn btn-secondary" href="/campus/auftrag/{{ d.object_id }}">Auftrag</a></div>
   </div>
   {% endfor %}
 </div>

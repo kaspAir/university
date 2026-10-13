@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% set c = artifact.content %}
+{% block title %}{{ artifact.kind }} v{{ artifact.version }} · Phronesis{% endblock %}
+{% block h1class %}dossier{% endblock %}
+{% block h1 %}{% if artifact.kind == "dossier" %}{{ c.project.title }}{% elif artifact.kind == "pilot_report" %}Pilotbericht {{ c.pilot.ref }} v{{ c.pilot.version }}{% else %}{{ artifact.kind }}{% endif %}{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/campus/ergebnisse">Ergebnisse</a> › {% if project %}<a href="/campus/dossiers/{{ project.id }}">{{ project.title }}</a> › {% endif %}{{ artifact.kind }} v{{ artifact.version }}</div>
+<div class="context">Fassung v{{ artifact.version }} · Hash <span class="id">{{ artifact.sha256 }}</span> · erstellt {{ artifact.created_at|dt }} · Erzeuger {{ artifact.producer_canonical_model_id }}
+  {% if artifact.synthetic %} · <span class="tag tag-accent">synthetischer Funktionsnachweis, keine Forschung</span>{% endif %}</div>
+
+<div class="axes" style="grid-template-columns: 1fr 1fr">
+  <div class="axis"><div class="alabel">Freigabestand dieser Fassung</div>
+    <div class="aval">{% if not entry.approval %}offen{% elif entry.approval.basis_withdrawn_after_approval %}Grundlage zurückgezogen{% elif not entry.approval.valid_for_current %}Freigabe gilt für ältere Fassung{% else %}{{ entry.approval.option|option_label }}{% endif %}</div>
+    <div class="anote">Ergebnisfreigabe bindet Hash und Zweck; externe Freigabe ist ein gesonderter Entscheid (Art. 22).</div></div>
+  <div class="axis"><div class="alabel">Blockierendes</div>
+    <div class="aval">{% if c.status_axes is defined %}{% if c.status_axes.release == "blocked" %}gesperrt{% else %}nichts blockiert{% endif %}{% else %}–{% endif %}</div>
+    <div class="anote">{% if c.status_axes is defined and c.status_axes.blocking.open_findings %}offene Einwände: {{ c.status_axes.blocking.open_findings|join(", ") }}{% elif c.status_axes is defined and c.status_axes.blocking.open_reassessments %}fällige Neubewertungen{% else %}keine offenen Einwände in dieser Fassung{% endif %}</div></div>
+</div>
+
+{% if can_decide and entry.approval_decidable %}
+<div class="label">Ergebnisfreigabe</div>
+<div class="cards" style="margin-top:0"><div class="card" data-decision data-endpoint="/artifacts/{{ artifact.id }}/approvals" data-extra='{"expected_sha256": "{{ artifact.sha256 }}"}' data-kind="Ergebnisfreigabe" data-title="{{ self.h1() }}" data-meta="Fassung v{{ artifact.version }} · {{ artifact.sha256[:12] }}…" data-question="{{ c.mandate.question_space if c.mandate is defined else '' }}" data-after="/campus/artefakte/{{ artifact.id }}">
+  <div class="row1"><span class="kicker">Ergebnis · vorbehaltener Entscheid (Art. 11, 22)</span></div>
+  <div class="title">Diese Fassung fachlich beurteilen</div>
+  <div class="open">Annehmen, begrenzt annehmen (mit Auflage), überarbeiten oder ablehnen. Offene Einwände verhindern eine unbedingte Annahme.</div>
+  <div class="actions"><button class="btn btn-primary" data-decide>Entscheiden</button></div>
+</div></div>
+{% include "_decision_dialog.html" %}
+{% endif %}
+
+{% if artifact.kind == "dossier" %}
+  <div class="label">Frage und Mandat</div>
+  <div class="question">{{ c.mandate.question_space }}</div>
+  <div class="protocol-line">Erkenntnisziel: {{ c.mandate.knowledge_goal }} · Methodenrahmen: {{ c.mandate.method_frame }} · Mandat {{ c.mandate.mandate_id }} v{{ c.mandate.version }} ({{ c.mandate.state }})</div>
+  <div class="label">Aussagen ({{ c.claims|length }})</div>
+  {% if c.claims %}{% for cl in c.claims %}
+  <div class="claim s-{{ cl.epistemic_status }}"><div class="cid">{{ cl.local_id }} · {{ cl.declared_kind }}{% if cl.declared_kind != cl.stored_kind %} → gespeichert als {{ cl.stored_kind }}{% endif %} · <span class="c-{{ cl.epistemic_status }}">{{ cl.epistemic_status|status_label }}</span></div>
+    <div class="ctext">{{ cl.statement }}</div>
+    <div class="cfoot">Geltung: {{ cl.validity_conditions or "–" }} · {{ cl.evidence|length }} Beleg(e){% for e in cl.evidence %} [{{ e.kind }} {{ e.source_passage_id or e.experiment_run_id or e.run_attempt_id }}]{% endfor %}{% if cl.flags %} · <span class="tag tag-accent">{{ cl.flags|join(", ") }}</span>{% endif %} · Erzeuger {{ cl.producer_canonical_model_id }}</div></div>
+  {% endfor %}{% else %}<div class="empty">Keine Aussagen.</div>{% endif %}
+  <div class="label">Quellen ({{ c.sources|length }})</div>
+  {% if c.sources %}<div class="tablewrap"><table class="table"><thead><tr><th>ID</th><th>Quelle</th><th>Status</th></tr></thead><tbody>
+    {% for s in c.sources %}<tr><td class="id">{{ s.source_id }}</td><td>{{ s.url or s.title or "–" }}</td><td><span class="tag {% if s.status != 'active' %}tag-accent{% else %}tag-neutral{% endif %}">{{ s.status }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<div class="empty">Keine Quellen; Aussagen ohne Beleg bleiben Hypothesen (T04).</div>{% endif %}
+  <div class="label">Gegenprüfungen und Einwände</div>
+  {% if c.reviews %}{% for v in c.reviews %}<div class="finding">Prüfbericht <span class="id">{{ v.review_report_id }}</span> · Prüfer {{ v.reviewer_canonical_model_id }} · Erzeuger {{ v.producer_canonical_model_id }} · <span class="tag tag-neutral">{{ v.verdict }}</span></div>{% endfor %}{% else %}<div class="empty">Keine Gegenprüfung: Prüfstatus offen.</div>{% endif %}
+  {% for f in c.findings %}<div class="finding"><span class="id">{{ f.id }}</span> · <strong>{{ f.subject }}</strong> · Tragweite {{ f.severity }} · <span class="tag {% if f.status == 'open' %}tag-accent{% else %}tag-neutral{% endif %}">{{ f.status }}</span></div>{% endfor %}
+  <div class="label">Läufe und Herkunft</div>
+  {% for r in c.runs %}<div class="finding"><span class="id">{{ r.run_attempt_id }}</span> · Aufgabe {{ r.task_id }} · Versuch {{ r.attempt_no }} · {{ r.end_reason or r.state }} · Route {{ r.routing_decision_id }}</div>{% endfor %}
+  <div class="protocol-line" style="border-bottom:0;margin-top:14px">KI-Beteiligung: {{ c.declarations.ai_involvement }}{% if c.declarations.synthetic_content %} · <span class="tag tag-accent">enthält synthetische Inhalte</span>{% endif %}</div>
+{% elif artifact.kind == "pilot_report" %}
+  <div class="label">Pilot</div>
+  <div class="question">{{ c.pilot.question }}</div>
+  <div class="protocol-line">Stufe {{ c.pilot.stage }} · Vorregistrierung {{ c.pilot.preregistration_sha256[:12] }}… · {{ c.flags.statement }}</div>
+  <div class="label">Je Bedingung</div>
+  <div class="tablewrap"><table class="table"><thead><tr><th>Bedingung</th><th>Aufgaben</th><th>Aufrufe</th><th>Kosten (gesetzt)</th><th>Gegenprüfungen</th><th>Bewertung</th></tr></thead><tbody>
+    {% for a in c.arms %}<tr><td style="font-weight:600">{{ a.condition }}</td><td>{{ a.tasks }}</td><td>{{ a.invocations }}</td><td class="nowrap">{{ a.cost_settled_minor|money }}</td><td>{{ a.reviews }}</td><td style="font-size:12px">{{ a.rule_outcome.mean_score if a.rule_outcome.mean_score is not none else "offen" }} ({{ a.rule_outcome.evaluations }} Bewertungen, {{ a.rule_outcome.open }} offen)</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="label">Unterschiede</div>{% if c.differences %}<ul>{% for d in c.differences %}<li style="font-size:13px">{{ d }}</li>{% endfor %}</ul>{% else %}<div class="empty">keine</div>{% endif %}
+  <div class="protocol-line" style="border-bottom:0">{{ c.flags.added_value_claim }}</div>
+{% else %}
+  <pre class="json">{{ artifact_json }}</pre>
+{% endif %}
+{% endblock %}
