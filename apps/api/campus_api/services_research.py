@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from campus_contracts.models import (
     AgentProfile,
     ClaimSet,
+    Deployment,
     ModelCatalog,
     ReviewReport,
     RouteProposal,
@@ -31,7 +32,7 @@ from campus_contracts.policy import RoutingPolicy
 from campus_contracts.validation import provider_schema, validate_document
 from campus_domain import routing
 from campus_domain.authz import authorize
-from campus_domain.budget import Pricing, estimate_cost
+from campus_domain.budget import Pricing, affordable_output_tokens, estimate_cost
 from campus_domain.composition import HARNESS_PROFILE, Composition, SkillInput, compose
 from campus_domain.errors import CampusError, ErrorCode
 from campus_domain.guards import InvocationContext, RunStartContext, check_invocation, check_run_start
@@ -75,6 +76,9 @@ from . import services_claims
 from .services_governance import active_catalog, active_policy
 
 SELECTOR_TASK_CLASS = "route_selection"
+# Upper bound for the selector answer; a real model that runs into the bound returns truncated JSON (first live route, 13.10.2026).
+# It is a cap, not a reservation target: the reservation is settled by the reported usage.
+SELECTOR_MAX_OUTPUT_TOKENS = 4000
 R_QUAL_TASK_CLASS = "QUALIFICATION_NOT_FOR_TASK_CLASS:"
 
 
@@ -468,6 +472,18 @@ def _settle_from_usage(db: Session, reservation: Reservation, pricing: Pricing |
     return actual
 
 
+def _output_bound(db: Session, task: Task, deployment: Deployment, pricing: Pricing | None, reservation: Reservation, input_tokens: int,
+                  floor: int) -> int:
+    """The max_output_tokens handed to the provider: the deployment's documented output capacity, limited only by what the task's budget
+    account can still pay at the bound price (free amount plus this call's own reservation). Never below the need the route was admitted
+    for, never a guessed constant: an answer must never fail because of a bound the campus invented (first live route, 13.10.2026)."""
+    account = db.get(BudgetAccount, task.budget_account_id)
+    available = budget_service.free_minor(db, account) + reservation.amount_minor
+    capacity = deployment.capabilities.output_tokens or floor
+    money = affordable_output_tokens(pricing, available, input_tokens) if pricing is not None else None
+    return max(floor, capacity if money is None else min(capacity, money))
+
+
 def _reservation_for(db: Session, decision_id: str, purpose: str) -> Reservation | None:
     return db.execute(select(Reservation).where(Reservation.routing_decision_id == decision_id, Reservation.purpose == purpose,
                                                 Reservation.state == "reserved")).scalars().first()
@@ -485,7 +501,7 @@ def _selector_proposal(db: Session, *, actor: Actor, ws: Workspace, mandate: Man
                           policy_version=policy.revision, details={"assessments": [a.model_dump() for a in assessments]})
     selector_need = need.model_copy(update={
         "role": "selector", "task_class": SELECTOR_TASK_CLASS, "data_labels": ["public"],
-        "required_features": ["text_input", "structured_output"], "context_tokens_estimate": 3000, "max_output_tokens": 800,
+        "required_features": ["text_input", "structured_output"], "context_tokens_estimate": 3000, "max_output_tokens": SELECTOR_MAX_OUTPUT_TOKENS,
         "required_tool_scopes": [], "substantive_contributor_model_ids": [],
     })
     selector = None
@@ -542,7 +558,8 @@ def _selector_proposal(db: Session, *, actor: Actor, ws: Workspace, mandate: Man
         "Nenne nur evidence_refs, die beim gewählten Kandidaten aufgeführt sind. Begründe anhand der mitgelieferten "
         "Eignungsnachweise (Aufgabenklasse, Ergebnis, Grenzen) und Kostenschätzungen. Fehlen vergleichende Nachweise, sage das "
         "ausdrücklich und behaupte keine nachgewiesene Überlegenheit. Nenne Alternativen mit Grund und offene Unsicherheiten. "
-        "Du entscheidest nichts über die Zulässigkeit; diese prüft der Kontrollkern. Antworte ausschliesslich im vorgegebenen JSON-Format."
+        "Du entscheidest nichts über die Zulässigkeit; diese prüft der Kontrollkern. Fasse dich kurz: rationale in höchstens drei Sätzen, "
+        "je Alternative ein Satz. Antworte ausschliesslich im vorgegebenen JSON-Format."
     )
     payload = {
         "task": {"task_id": task.id, "task_class": need.task_class, "role": need.role, "language": need.language,
@@ -557,7 +574,8 @@ def _selector_proposal(db: Session, *, actor: Actor, ws: Workspace, mandate: Man
         invocation_id=f"{task.id}:selector:{selector_decision.id}", deployment_id=selector.id, system_rules=system_rules,
         content_blocks=[{"type": "text", "text": json.dumps(payload, ensure_ascii=False, indent=1), "data_label": "public",
                          "origin": "core_summary"}],
-        output_contract=provider_schema("route_proposal"), max_output_tokens=selector_need.max_output_tokens,
+        output_contract=provider_schema("route_proposal"),
+        max_output_tokens=_output_bound(db, task, selector, selector_pricing, reservation, selector_need.context_tokens_estimate, selector_need.max_output_tokens),
         metadata={"task_id": task.id, "candidates": candidates, "routing_decision_id": selector_decision.id},
     )
     try:
@@ -569,11 +587,17 @@ def _selector_proposal(db: Session, *, actor: Actor, ws: Workspace, mandate: Man
     _settle_from_usage(db, reservation, selector_pricing, response.usage)
     db.commit()  # the consumed cost survives whatever the content check below says
     try:
+        _check_not_truncated(response, "Selector-Antwort")
         proposal = RouteProposal.model_validate(json.loads(response.text()))
     except Exception as exc:  # the model's answer violates the contract: recorded as PROPOSAL_INVALID, no second call
-        raise CampusError(ErrorCode.PROPOSAL_INVALID, f"Selector-Antwort verletzt den Vertrag route_proposal: {type(exc).__name__}",
-                          blocked_action="route.propose", policy_version=policy.revision,
-                          details={"assessments": [a.model_dump() for a in assessments]}) from exc
+        reason = exc.message if isinstance(exc, CampusError) else f"Selector-Antwort verletzt den Vertrag route_proposal: {type(exc).__name__}"
+        record(db, actor=actor, command="route.propose", object_type="task", object_id=task.id, object_version=str(task.version),
+               correlation_id=correlation_id, policy_decision="blocked:PROPOSAL_INVALID", project_id=task.project_id,
+               payload={"invocation_id": response.invocation_id, "selector_deployment_id": selector.id, "stop_reason": response.stop_reason,
+                        "output_tokens": response.usage.output_tokens, "message": reason})
+        db.commit()
+        raise CampusError(ErrorCode.PROPOSAL_INVALID, reason, blocked_action="route.propose", policy_version=policy.revision,
+                          details={"assessments": [a.model_dump() for a in assessments], "audited": True}) from exc
     return proposal, selector.canonical_model_id or selector.id
 
 
@@ -752,7 +776,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         invocation_id=f"{attempt.id}:gen:1", deployment_id=deployment.id,
         system_rules=composition.system_rules + " Antworte ausschliesslich im vorgegebenen JSON-Format.",
         content_blocks=content_blocks, output_contract=provider_schema("claim_set") if structured else None,
-        max_output_tokens=need.max_output_tokens,
+        max_output_tokens=_output_bound(db, task, deployment, pricing, generation, need.context_tokens_estimate, need.max_output_tokens),
         metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "passage_ids": [p["passage_id"] for p in passages],
                   "experiment_run_ids": [x.id for x in experiments], "task_class": need.task_class, "composition_key": composition.combination_key},
     )
@@ -787,13 +811,15 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     claims_recorded, claim_set_valid = 0, None
     if structured:
         try:
+            _check_not_truncated(response, "Erzeugungsantwort")
             claim_set = ClaimSet.model_validate(json.loads(response.text()))
             claim_set_valid = True
         except Exception as exc:  # kept as artifact, no claims, flagged in the audit
             claim_set_valid = False
             record(db, actor=actor, command="claim.record", object_type="run_attempt", object_id=attempt.id, object_version=None,
                    correlation_id=correlation_id, policy_decision="blocked:PROPOSAL_INVALID", project_id=task.project_id,
-                   payload={"message": f"claim_set ungültig: {type(exc).__name__}"})
+                   payload={"message": exc.message if isinstance(exc, CampusError) else f"claim_set ungültig: {type(exc).__name__}",
+                            "stop_reason": response.stop_reason, "output_tokens": response.usage.output_tokens})
         else:
             claims_recorded = len(services_claims.record_claim_set(db, actor=actor, task=task, attempt=attempt, artifact=artifact, claim_set=claim_set,
                                                                   producer_canonical_model_id=decision.selected_canonical_model_id,
@@ -816,6 +842,14 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         "review_deployment_id": decision.review_deployment_id, "artifact_version_id": artifact.id, "artifact_sha256": digest,
         "synthetic": synthetic, "claims_recorded": claims_recorded, "claim_set_valid": claim_set_valid, "passages_given": len(passages),
     }
+
+
+def _check_not_truncated(response, what: str) -> None:
+    """A structured answer cut off at the output bound is not a contract violation of the model but a too small bound of the task:
+    say so, with the numbers, instead of reporting a JSON parse error."""
+    if response.stop_reason == "max_tokens":
+        raise CampusError(ErrorCode.PROPOSAL_INVALID, f"{what} abgeschnitten: Ausgabegrenze von {response.usage.output_tokens} Token erreicht "
+                          "(max_output_tokens der Aufgabe oder des Selectors zu klein; Nutzung ist abgerechnet)", blocked_action="llm.invoke")
 
 
 def review_consistency(report: ReviewReport) -> tuple[bool, str | None]:
@@ -883,7 +917,8 @@ def start_review(db: Session, *, actor: Actor, run_id: str, correlation_id: str)
              "data_label": need.data_labels[0], "origin": "task"},
             {"type": "text", "text": f"Artefakt (sha256 {artifact.sha256}):\n{artifact_text}", "data_label": need.data_labels[0], "origin": "artifact"},
         ],
-        output_contract=provider_schema("review_report"), max_output_tokens=need.max_output_tokens,
+        output_contract=provider_schema("review_report"),
+        max_output_tokens=_output_bound(db, task, reviewer, pricing, reservation, need.context_tokens_estimate + need.max_output_tokens, need.max_output_tokens),
         metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "artifact_sha256": artifact.sha256, "task_class": need.task_class},
     )
     try:
@@ -901,10 +936,12 @@ def start_review(db: Session, *, actor: Actor, run_id: str, correlation_id: str)
     _settle_from_usage(db, reservation, pricing, response.usage)
     db.commit()  # call and cost evidence survive a failing content check
     try:
+        _check_not_truncated(response, "Prüfbericht")
         report = ReviewReport.model_validate(json.loads(response.text()))
     except Exception as exc:
-        raise CampusError(ErrorCode.PROPOSAL_INVALID, f"Prüfbericht verletzt den Vertrag review_report: {type(exc).__name__}",
-                          blocked_action="review.start", details={"invocation_id": response.invocation_id}) from exc
+        reason = exc.message if isinstance(exc, CampusError) else f"Prüfbericht verletzt den Vertrag review_report: {type(exc).__name__}"
+        raise CampusError(ErrorCode.PROPOSAL_INVALID, reason, blocked_action="review.start",
+                          details={"invocation_id": response.invocation_id, "stop_reason": response.stop_reason}) from exc
     consistent, inconsistency = review_consistency(report)
     row = ReviewReportRecord(
         id=new_id("RR"), workspace_id=actor.workspace_id, task_id=task.id, run_attempt_id=attempt.id, artifact_version_id=artifact.id,

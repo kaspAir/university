@@ -8,7 +8,7 @@ from __future__ import annotations
 # Defaults a research order in the pilot gets for the parts of a task need the form does not ask for. Shown on the form, not hidden.
 TASK_DEFAULTS: dict = {
     "schema_version": "1.0", "task_class": "source_analysis", "role": "producer", "language": "de-CH", "data_labels": ["public"],
-    "required_features": ["text_input", "structured_output"], "context_tokens_estimate": 4000, "max_output_tokens": 1500,
+    "required_features": ["text_input", "structured_output"], "context_tokens_estimate": 12000, "max_output_tokens": 4000,
     "required_tool_scopes": ["sources.read"], "substantive_contributor_model_ids": [],
 }
 MANDATE_DEFAULTS: dict = {

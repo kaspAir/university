@@ -65,3 +65,16 @@ def check_child_limit(parent_account_id: str, parent_available: int, child_limit
             blocked_action="budget.create_child",
             required_resolution="Kindbudget verkleinern oder Elternbudget durch Mandatsänderung erhöhen",
         )
+
+
+def affordable_output_tokens(pricing: Pricing, budget_minor: int, input_tokens: int) -> int | None:
+    """Output tokens the given budget can still pay for after the input, at the bound price. This is the runtime upper bound for a
+    model answer (computed from measured quantities, never a fixed number). None when output is free of charge (no monetary bound);
+    zero when the input alone exhausts the budget."""
+    if input_tokens < 0 or budget_minor < 0:
+        raise CampusError(ErrorCode.VALIDATION_ERROR, "Budget und Tokenzahlen dürfen nicht negativ sein")
+    if pricing.output_per_million_minor <= 0:
+        return None
+    remaining = budget_minor - ceil(input_tokens * pricing.input_per_million_minor / 1_000_000)
+    return max(0, int(remaining * 1_000_000 // pricing.output_per_million_minor))
+

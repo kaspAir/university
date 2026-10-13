@@ -80,7 +80,7 @@ def test_ui_marks_real_calls_from_the_active_catalog_not_from_a_claim(client, se
     assert "echt · anthropic, openai" in betrieb and "kosten Geld" in betrieb
     mandate_id = next(m["mandate_version_id"] for m in api.get("/mandates").json() if m["state"] == "approved")
     order = client.get(f"/campus/auftrag/{mandate_id}").text
-    assert "anthropic/test-model" in order and "echt · kostet Geld" in order and "Erzeugung CHF 0.12" in order, "estimates from bound prices"
+    assert "anthropic/test-model" in order and "echt · kostet Geld" in order and "Erzeugung CHF 0.32" in order, "estimates from bound prices"
     assert "synthetischer Funktionsnachweis" not in order
     assert "echte Modellaufrufe aktiv" in client.get("/campus/ergebnisse").text
     assert state["project"]["project_id"]

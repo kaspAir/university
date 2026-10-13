@@ -39,7 +39,7 @@
         <label class="label" style="margin-top:0">Institut</label>
         <select class="input" name="institute_id">{% for i in institutes %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}</select>
         <label class="label">Projekttitel</label><input class="input" name="title" value="{{ m.document.title }}" required>
-        <label class="label">Teilbudget (CHF, aus dem Mandat {{ m.budget }})</label><input class="input" name="budget" value="10.00" required>
+        <label class="label">Teilbudget (CHF, aus dem Mandat {{ m.budget }})</label><input class="input" name="budget" value="{{ "%.2f"|format(m.budget_minor / 100) }}" required>
         <label class="label">Forscherprofil</label>
         <select class="input" name="profile">{% for p in profiles %}<option value="{{ p.ref }}" data-profile='{{ p|tojson }}'>{{ p.ref }} · {{ p.primary_specialization }} · {{ p.operating_status }} / {{ p.qualification_status }}</option>{% endfor %}</select>
         <div style="font-size:12px;color:var(--color-neutral-700);margin-top:8px">Aufgabe: Klasse {{ task_defaults.task_class }}, Rolle {{ task_defaults.role }}, Datenklasse {{ task_defaults.data_labels|join(", ") }}, Rechte {{ task_defaults.required_tool_scopes|join(", ") }}, Aufgabenbudget 1.00 CHF. Ein nicht qualifiziertes Profil läuft im Modus sandbox_experiment (Art. 26).</div>

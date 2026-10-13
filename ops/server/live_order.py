@@ -6,6 +6,8 @@ Two steps, each honest about who decides:
              project through the internet service (SSRF guard) and stores it version-exact.
   register   records the need (Art. 26) and registers a real candidate skill and candidate profile for public source analysis.
              Candidate means: not qualified, no evidence claimed; the task runs as sandbox_experiment and the dossier says so.
+  task       adds a further task to the order's project with the CURRENT pilot task defaults (output bound, context estimate) when an
+             earlier task was planned with bounds a real answer did not fit into; the order page then offers «Ablauf starten» for it.
 
 Project, task, run and judgement happen in the browser (/campus/auftrag/<mandate version>): choose the profile
 `source-analyst-public@1`, start the flow with the stored source URL, watch, read the dossier, decide.
@@ -23,8 +25,10 @@ from pathlib import Path
 REPO = Path(os.environ["CAMPUS_HOME"]) if os.environ.get("CAMPUS_HOME") else Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "packages" / "contracts"))
 sys.path.insert(0, str(REPO / "ops" / "server"))
+sys.path.insert(0, str(REPO / "apps" / "api"))
 from bootstrap_campus import Api  # noqa: E402
 
+from campus_api.web.steps import task_need_for  # noqa: E402
 from campus_contracts.validation import validate_document  # noqa: E402
 
 TITLE = "TEST-02: Auswertung einer gespeicherten öffentlichen Quelle mit echten Modellen (Live-Auftrag)"
@@ -151,6 +155,31 @@ def step_register(api: Api, me: dict, a) -> int:
     return 0
 
 
+def step_task(api: Api, me: dict, a) -> int:
+    mandates = [m for m in api.get("/mandates") if m["document"].get("title") == TITLE and m["state"] == "approved"]
+    if not mandates:
+        print("Kein freigegebenes TEST-02-Mandat; der Entscheid gehört der Forschungsleitung (Art. 11).")
+        return 2
+    mid = mandates[-1]["mandate_version_id"]
+    projects = [p for p in api.get("/projects") if p["mandate_version_id"] == mid]
+    if not projects:
+        print("Noch kein Projekt unter dem Mandat; im Browser «Projekt und Aufgabe anlegen».")
+        return 2
+    project = projects[-1]
+    policy = next((p["revision"] for p in api.get("/policies") if p["state"] == "active"), None)
+    profile_ref = f"{PROFILE_ID}@{PROFILE_VERSION}"
+    profile = next((ag for ag in api.get("/inventory")["agents"] if ag["ref"] == profile_ref), None)
+    if profile is None or policy is None:
+        print("Profil oder aktive Policy fehlt:", profile_ref, policy)
+        return 2
+    need = task_need_for(profile, policy)
+    task = api.cmd(f"/projects/{project['project_id']}/tasks", {"task_need": need, "budget": a.task_budget_chf})
+    print("Aufgabe angelegt:", task["task_id"], f"Modus {need['qualification_mode']}, Ausgabegrenze {need['max_output_tokens']} Token, "
+          f"Kontextschätzung {need['context_tokens_estimate']}, Budget {a.task_budget_chf} CHF")
+    print("Im Browser «Ablauf starten»:", f"{a.base}/campus/auftrag/{mid}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--workspace", required=True)
@@ -162,12 +191,13 @@ def main() -> int:
     ap.add_argument("--budget-chf", default="3.00")
     ap.add_argument("--institute", default="angewandt", help="Teil der Instituts-ID oder des Namens")
     ap.add_argument("--policy-revision", default="pilot-policy-2")
-    ap.add_argument("step", choices=["mandate", "register"])
+    ap.add_argument("--task-budget-chf", default="1.00")
+    ap.add_argument("step", choices=["mandate", "register", "task"])
     a = ap.parse_args()
     api = Api(a.base)
     me = api.login(a.workspace, a.username, Path(a.password_file).read_text(encoding="utf-8").strip())
     print("angemeldet:", me["display_name"], me["roles"])
-    return {"mandate": step_mandate, "register": step_register}[a.step](api, me, a)
+    return {"mandate": step_mandate, "register": step_register, "task": step_task}[a.step](api, me, a)
 
 
 if __name__ == "__main__":
