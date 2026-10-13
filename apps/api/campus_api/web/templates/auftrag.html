@@ -54,15 +54,31 @@
       <form data-journey="workflow" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}" onsubmit="return false">
         <label class="label" style="margin-top:0">Öffentliche Quellen (eine URL je Zeile, optional)</label>
         <textarea class="input" name="source_urls" rows="3" placeholder="https://…"></textarea>
+        {% if known_sources %}<div style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Bereits gespeicherte öffentliche Quellen dieses Workspace (werden für dieses Projekt neu abgerufen und fassungsgenau gespeichert):
+          <ul style="margin:4px 0 0;padding-left:16px">{% for u in known_sources %}<li><code style="font-size:11px">{{ u }}</code></li>{% endfor %}</ul></div>{% endif %}
         <div style="font-size:12px;color:var(--color-neutral-700);margin-top:8px">Quellen → Route (Selector mit Kernprüfung) → Erzeugung → Gegenprüfung durch ein anderes Modell → Dossier. Interne und private Ziele werden blockiert; eine blockierte Quelle ist eine Zugangslücke, kein Abbruch.</div>
         <div data-f="err" class="error-block hidden"></div>
         <div style="margin-top:14px"><button class="btn btn-primary" data-submit>Ablauf starten</button></div>
       </form>
     {% endif %}
 
+    {% if step.action in ("project", "workflow") %}
+      <div class="label">Modelle und Kosten dieses Auftrags</div>
+      <div style="font-size:12px">Modelle, die ein Ablauf dieses Auftrags aufrufen kann (aktiver Katalog) und was der Kontrollkern je Aufruf reserviert:
+          {% if deployments %}<ul style="margin:4px 0 0;padding-left:16px">{% for d in deployments %}<li>{{ d.canonical_model_id or d.id }} · {{ d.provider_id }} · {% if d.synthetic %}<span class="tag tag-accent">synthetisch</span>{% else %}<span class="tag tag-outline">echt · kostet Geld</span>{% endif %} · Erzeugung {{ d.generation_estimate }}, Gegenprüfung {{ d.review_estimate }}</li>{% endfor %}</ul>
+          {% else %}<span class="tag tag-accent">kein aktiver Katalog</span>{% endif %}
+          <div style="color:var(--color-neutral-700);margin-top:4px">Reservierungen folgen den Aufgabenvorgaben ({{ task_defaults.context_tokens_estimate }} Kontext-, {{ task_defaults.max_output_tokens }} Ausgabe-Token); abgerechnet wird der gemeldete Verbrauch. Das Aufgabenbudget und die Policy-Limits begrenzen den Lauf; ein Aufruf mit unbekanntem Ausgang bleibt als «offen» gebunden.</div></div>
+    {% endif %}
+
     {% if step.action == "watch" and workflow %}
       <div class="label">Ablauf</div>
       <div class="finding" data-workflow-id="{{ workflow.id }}">Ablauf <span class="id">{{ workflow.id }}</span> · Stand: <strong data-f="status">wird gelesen …</strong> <span data-f="stage"></span></div>
+      {% if task and project %}<form data-journey="workflow" data-restart class="hidden" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}" onsubmit="return false" style="margin-top:12px">
+        <label class="label" style="margin-top:0">Neuer Ablauf: öffentliche Quellen (eine URL je Zeile, optional)</label>
+        <textarea class="input" name="source_urls" rows="3" placeholder="https://…"></textarea>
+        <div data-f="err" class="error-block hidden"></div>
+        <div style="margin-top:14px"><button class="btn btn-primary" data-submit>Ablauf erneut starten</button></div>
+      </form>{% endif %}
     {% endif %}
 
     {% if step.action == "freeze" and project %}

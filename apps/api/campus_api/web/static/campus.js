@@ -128,7 +128,14 @@
         const data = await res.json();
         el.querySelector("[data-f=status]").textContent = data.status || "unbekannt";
         el.querySelector("[data-f=stage]").textContent = data.stage ? "· Stufe " + data.stage : "";
-        if (data.status && data.status !== "RUNNING" && !ended) { ended = true; setTimeout(() => location.reload(), 1500); return; }
+        if (data.status && data.status !== "RUNNING" && !ended) {
+          ended = true;
+          if (data.status === "COMPLETED") { setTimeout(() => location.reload(), 1500); return; }
+          /* failed, terminated, timed out: no result exists; the reason stays in the workflow service and the audit; a new flow is a new route */
+          el.querySelector("[data-f=status]").textContent = data.status + " – Ablauf ohne Ergebnis beendet (Grund im Ablaufdienst und im Audit unter Betrieb). Ein neuer Ablauf ist eine neue begründete Route.";
+          document.querySelectorAll("[data-restart]").forEach(f => f.classList.remove("hidden"));
+          return;
+        }
       } catch (e) { el.querySelector("[data-f=status]").textContent = "Ablaufdienst nicht erreichbar"; }
       if (!ended) setTimeout(tick, 5000);
     }

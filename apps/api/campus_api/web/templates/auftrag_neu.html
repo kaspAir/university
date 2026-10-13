@@ -3,7 +3,8 @@
 {% block h1 %}Neuer Forschungsauftrag{% endblock %}
 {% block content %}
 <div class="meta" style="margin-top:8px">Schritt 1 von 4: Mandat (Art. 9). Danach entscheidet die Forschungsleitung (Art. 11), dann Projekt und Aufgabe, dann der Ablauf.
-  {% if mock %}<span class="tag tag-accent">Mockbetrieb: Ergebnisse sind synthetische Funktionsnachweise, keine Forschung</span>{% endif %}</div>
+  {% if live %}<span class="tag tag-outline">echte Modellaufrufe ({{ live_adapters|join(", ") }}): der Ablauf kostet Geld im Rahmen von Budget und Policy-Limits</span>{% endif %}
+  {% if mock %}<span class="tag tag-accent">Mockbetrieb: Ergebnisse von Mock-Deployments sind synthetische Funktionsnachweise, keine Forschung</span>{% endif %}</div>
 {% if not can_decide %}<div class="error-block"><code>FORBIDDEN</code> Ein Mandat legt die Forschungsleitung an.</div>{% else %}
 <form data-journey="mandate" class="grid-2-300" style="margin-top:22px" onsubmit="return false">
   <div>

@@ -32,7 +32,7 @@ Diensten gelesen. Die Seite `/campus/auftrag/{mandatsfassung}` zeigt oben **«N�
 | 1 Mandat | `/campus/auftrag/neu` | Formular (Titel, Frage, Ziel, Methode, Regeln, Budget, Dauer, Berichtspunkte); Datenklasse `public`; verantwortlich = angemeldete Person | `POST /mandates` |
 | 2 Entscheid | Auftragsseite | Dialog mit vier gleichrangigen Optionen, Gründe und Folgen Pflicht, Auflage bei begrenzter Annahme | `POST /mandates/{id}/approve` |
 | 3 Projekt und Aufgabe | Auftragsseite | Institut, Teilbudget, registriertes Forscherprofil; die Aufgabe erhält die sichtbaren Pilotvorgaben (`web/steps.py`); nicht qualifizierte Profile laufen als `sandbox_experiment` | `POST /projects`, `POST /projects/{id}/tasks` |
-| 4 Ablauf | Auftragsseite | Optional öffentliche Quellen; der dauerhafte Ablauf macht Quellen → Route → Erzeugung → Gegenprüfung → Dossier; die Seite liest Status und Stufe aus dem Ablaufdienst | `POST /tasks/{id}/workflow`, `GET /workflows/{id}` |
+| 4 Ablauf | Auftragsseite | Optional öffentliche Quellen (bereits gespeicherte werden zum Einfügen gelistet); der dauerhafte Ablauf macht Quellen → Route → Erzeugung → Gegenprüfung → Dossier; die Seite liest Status und Stufe aus dem Ablaufdienst. Endet der Ablauf ohne Ergebnis (FAILED, TERMINATED), zeigt die Seite das an und bietet «Ablauf erneut starten» (neue Route, gleiche Aufgabe); ein zweiter Ablauf neben einem laufenden wird abgewiesen | `POST /tasks/{id}/workflow`, `GET /workflows/{id}` |
 | 5 Dossier | Auftragsseite | Falls der Ablauf ohne Dossier endete: «Dossier einfrieren» | `POST /projects/{id}/dossier` |
 | 6 Ergebnis | `/campus/artefakte/{id}` | Lesbares Dossier (Frage, Aussagen mit Status und Flags, Quellen, Prüfberichte, Einwände, Läufe, KI-Erklärung) und die **Ergebnisfreigabe** an den Hash gebunden | `POST /artifacts/{id}/approvals` |
 
@@ -44,8 +44,15 @@ Was die Seiten **nicht** tun: keinen Schritt auslösen, keinen Zustand erfinden.
 
 ## Regeln, die die Oberfläche durchsetzt
 
-- Leistungsebene und Datenstand in jeder Ansicht; in `development_mock` zusätzlich der Tag **Mockbetrieb**.
+- Leistungsebene und Datenstand in jeder Ansicht. Der Tag **echte Modellaufrufe · <Adapter>** erscheint, wenn der AKTIVE Katalog ein
+  freigegebenes Deployment eines echten Anbieters enthält; der Tag **Mockbetrieb**, wenn ein Mock-Deployment aktiv ist oder kein Katalog aktiv
+  ist. Beides wird aus dem Katalog gelesen, nicht aus der Leistungsebene behauptet (ADR-0016).
 - Läufe und Deployments über den Mock-Adapter und Fassungen mit `synthetic` tragen den Tag **synthetisch**. Mock-Daten erscheinen nie als Forschung.
+- Die Auftragsseite zeigt ab dem Schritt «Projekt und Aufgabe» die Modelle des aktiven Katalogs mit **echt · kostet Geld** oder **synthetisch**
+  und den Beträgen, die der Kontrollkern für Erzeugung und Gegenprüfung aus den gebundenen Preisen reserviert; dazu die im Workspace bereits
+  gespeicherten öffentlichen Quellen zum Einfügen.
+- Betrieb & Kosten zeigt die freigegebenen Adapter des Prozesses, die bestehenden Grenzen (`pilot_limitations`) und das **Aufrufjournal**:
+  jeder externe Aufruf mit Art (Probe oder Lauf), echt oder synthetisch, Deployment, effektiver Modellkennung, Zustand und Tokens.
 - Die drei Statusachsen (Arbeitsstand, epistemischer Status, Freigabe) stehen nebeneinander und werden nie zu einem Gesamtstatus verschmolzen.
 - Fehlende Gegenprüfung heisst **offen**, nie bestanden. Einwände bleiben sichtbar.
 - Kosten «unbekannt» erscheinen als **offen**, nie als 0.

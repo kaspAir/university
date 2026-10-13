@@ -3,7 +3,8 @@
 {% block h1 %}Ergebnisse{% endblock %}
 {% block content %}
 <div class="meta" style="margin-top:8px">Eingefrorene Fassungen aller Dossiers mit Freigabestand. Eine Freigabe gilt nur für die Fassung mit genau diesem Hash (T08).
-  {% if mock %}<span class="tag tag-accent">Mockbetrieb: alle Fassungen sind synthetische Funktionsnachweise</span>{% endif %}</div>
+  {% if live %}<span class="tag tag-outline">echte Modellaufrufe aktiv: Fassungen ohne Kennzeichen «synthetisch» stammen aus echten Aufrufen; der Erzeuger steht je Zeile</span>{% endif %}
+  {% if mock and not live %}<span class="tag tag-accent">Mockbetrieb: alle Fassungen sind synthetische Funktionsnachweise</span>{% elif mock %}<span class="tag tag-accent">Mock-Deployments im Katalog: deren Fassungen sind synthetisch gekennzeichnet</span>{% endif %}</div>
 {% if rows %}
 <div class="tablewrap"><table class="table">
   <thead><tr><th>Fassung</th><th>Dossier</th><th>Institut</th><th>Herkunft</th><th>Freigabe</th><th>Erstellt</th></tr></thead>

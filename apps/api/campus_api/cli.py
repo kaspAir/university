@@ -54,6 +54,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--workspace", required=True)
     p.add_argument("--deployment-id", required=True)
 
+    p = sub.add_parser("probe-invocation", help="EIN kleiner echter Aufruf über das Gateway (Journal, Nutzungswerte, Modellkennung, "
+                                                "strukturierte Ausgabe); kostet Geld, Obergrenze Pflicht; keine Forschung")
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--deployment-id", required=True)
+    p.add_argument("--max-cost", required=True, help="Obergrenze für diese eine Probe, z. B. 0.05")
+    p.add_argument("--currency", default="CHF")
+
     args = parser.parse_args(argv)
     settings = get_settings()
     factory = make_session_factory(make_engine(settings.database_url))
@@ -80,6 +87,12 @@ def main(argv: list[str] | None = None) -> int:
             from . import services_research
 
             result = services_research.discover_models(db, actor=_system_actor(args.workspace), deployment_id=args.deployment_id)
+            print(json.dumps(result, indent=1, ensure_ascii=False, default=str))
+        elif args.cmd == "probe-invocation":
+            from . import services_probe
+
+            result = services_probe.probe_deployment(db, actor=_system_actor(args.workspace), deployment_id=args.deployment_id,
+                                                     max_cost=args.max_cost, currency=args.currency, correlation_id=correlation)
             print(json.dumps(result, indent=1, ensure_ascii=False, default=str))
         elif args.cmd == "import-catalog":
             row = services_governance.import_catalog(db, actor=_system_actor(args.workspace), document=_load(args.path),

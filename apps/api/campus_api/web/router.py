@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from campus_domain.budget import estimate_cost
 from campus_domain.errors import CampusError, ErrorCode
 from campus_domain.money import Money
 from campus_infra import budget_service
@@ -23,7 +24,9 @@ from campus_infra.models import (
     AuditEvent,
     HumanDecision,
     Institute,
+    LLMInvocation,
     MandateVersion,
+    ModelCatalogRevision,
     PilotStudy,
     Project,
     RoutingDecisionRecord,
@@ -40,6 +43,7 @@ from .. import (
     services_factory,
     services_identity,
     services_pilot,
+    services_probe,
     services_research,
     services_sources,
 )
@@ -125,12 +129,20 @@ def _counters(db: Session, actor: Actor) -> dict:
             "pruefung": open_decisions, "bibliothek": sources, "betrieb": None}
 
 
+def _call_mode(db: Session, actor: Actor) -> dict:
+    """Real or synthetic model calls, read from the ACTIVE catalog (what a run started now would use), never from a claim.
+    `live`: at least one enabled deployment uses a real provider adapter. `mock`: an enabled mock deployment exists, or no catalog is active."""
+    enabled = [d for d in governance.catalog_status(actor=actor, db=db)["deployments"] if d.get("enabled")]
+    real = sorted({d["adapter"] for d in enabled if d["adapter"] != "mock"})
+    return {"live": bool(real), "live_adapters": real, "mock": any(d["adapter"] == "mock" for d in enabled) or not enabled}
+
+
 def _ctx(request: Request, db: Session, actor: Actor, view: str, **extra) -> dict:
     settings = get_settings()
     ws = db.get(Workspace, actor.workspace_id)
     user = db.get(User, actor.actor_id)
     return {"request": request, "view": view, "user": user, "roles": sorted(r.value for r in actor.roles), "workspace": ws,
-            "capability_level": settings.capability_level, "mock": settings.capability_level == "development_mock",
+            "capability_level": settings.capability_level, **_call_mode(db, actor),
             "now": fmt_dt(datetime.now(UTC)), "csrf": request.state.session_row.csrf_token, "counters": _counters(db, actor),
             "can_stop": bool({"research_director", "integrity_officer"} & {r.value for r in actor.roles}),
             "can_decide": "research_director" in {r.value for r in actor.roles}, "task_defaults_json": json.dumps(TASK_DEFAULTS),
@@ -335,10 +347,33 @@ def auftrag(mandate_version_id: str, request: Request, actor: Actor = Depends(we
     policy_revision = next((p["revision"] for p in policies if p["state"] == "active"), "")
     institutes = db.execute(select(Institute).where(Institute.workspace_id == actor.workspace_id).order_by(Institute.sort_order)).scalars().all()
     dossiers = [a for a in artifacts if a["kind"] == "dossier"]
+    # what a run started now would call, with the cost the core would reserve for the pilot task defaults (from bound prices, never guessed)
+    known_sources = [u for (u,) in db.execute(select(Source.normalized_url).join(Project, Project.id == Source.project_id)
+                                              .where(Project.workspace_id == actor.workspace_id, Source.status == "active").distinct()
+                                              .order_by(Source.normalized_url)).all()]
     return _render("auftrag.html", _ctx(request, db, actor, "dossiers", mandate=mandate, project=project, task=tasks[-1] if tasks else None, runs=runs,
                                         reviews=reviews, artifacts=artifacts, workflows=workflows, workflow=workflows[-1] if workflows else None, step=step,
                                         progress=progress, profiles=profiles, policy_revision=policy_revision, institutes=institutes, synthetic=synthetic,
-                                        task_defaults=TASK_DEFAULTS, latest_artifact=dossiers[-1] if dossiers else None))
+                                        task_defaults=TASK_DEFAULTS, latest_artifact=dossiers[-1] if dossiers else None,
+                                        deployments=_deployment_estimates(db, actor), known_sources=known_sources))
+
+
+def _deployment_estimates(db: Session, actor: Actor) -> list[dict]:
+    """Enabled deployments of the active catalog with the generation and review estimates the core would reserve for TASK_DEFAULTS."""
+    need = TASK_DEFAULTS
+    out = []
+    for d in governance.catalog_status(actor=actor, db=db)["deployments"]:
+        if not d.get("enabled"):
+            continue
+        pricing = services_research._pricing(db, actor.workspace_id, d.get("pricing_ref"))
+        try:
+            gen = estimate_cost(pricing, need["context_tokens_estimate"], need["max_output_tokens"]).format()
+            rev = estimate_cost(pricing, need["context_tokens_estimate"] + need["max_output_tokens"], need["max_output_tokens"]).format()
+        except CampusError:
+            gen, rev = "offen", "offen"
+        out.append({"id": d["id"], "canonical_model_id": d.get("canonical_model_id"), "provider_id": d["provider_id"], "adapter": d["adapter"],
+                    "synthetic": d["adapter"] == "mock", "generation_estimate": gen, "review_estimate": rev})
+    return out
 
 
 def governance_list_projects(db: Session, actor: Actor) -> list[dict]:
@@ -428,4 +463,22 @@ def betrieb(request: Request, actor: Actor = Depends(web_actor), db: Session = D
     tree = budget_service.tree(db, actor.workspace_id)
     unknown = db.execute(select(func.count()).select_from(AuditEvent).where(AuditEvent.workspace_id == actor.workspace_id,
                                                                             AuditEvent.payload["end_reason"].astext == "outcome_unknown")).scalar() or 0
-    return _render("betrieb.html", _ctx(request, db, actor, "betrieb", ready=ready, catalog=catalog, sandbox=sandbox, pilots=pilots, tree=tree, unknown=unknown))
+    # invocation journal: every external call, begun before sending; probes carry the probe marker; the adapter comes from the catalog
+    # revision that registered the deployment (also drafts: probes run before activation)
+    adapters_by_deployment: dict[str, str] = {}
+    for rev in db.execute(select(ModelCatalogRevision).where(ModelCatalogRevision.workspace_id == actor.workspace_id)
+                          .order_by(ModelCatalogRevision.created_at)).scalars().all():
+        for d in rev.document["deployments"]:
+            adapters_by_deployment[d["id"]] = d["adapter"]
+    journal = []
+    for inv in db.execute(select(LLMInvocation).where(LLMInvocation.workspace_id == actor.workspace_id)
+                          .order_by(LLMInvocation.created_at.desc()).limit(50)).scalars().all():
+        adapter = adapters_by_deployment.get(inv.deployment_id, "?")
+        journal.append({"id": inv.id, "deployment_id": inv.deployment_id, "adapter": adapter, "synthetic": adapter == "mock",
+                        "probe": services_probe.is_probe_decision(inv.routing_decision_id), "state": inv.state,
+                        "effective_model_id": inv.effective_model_id, "input_tokens": inv.input_tokens, "output_tokens": inv.output_tokens,
+                        "error": inv.error, "created_at": inv.created_at})
+    info = health.health()
+    return _render("betrieb.html", _ctx(request, db, actor, "betrieb", ready=ready, catalog=catalog, sandbox=sandbox, pilots=pilots, tree=tree, unknown=unknown,
+                                        journal=journal, approved_adapters=info["approved_adapters"], limitations=info["pilot_limitations"],
+                                        build_sha=info["build_sha"]))

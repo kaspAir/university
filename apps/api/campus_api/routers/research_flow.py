@@ -195,9 +195,20 @@ async def start_workflow(task_id: str, body: WorkflowBody, request: Request, act
     correlation = trace_id(request)
     flow = FlowInput(workspace_id=actor.workspace_id, project_id=task.project_id, task_id=task.id, source_urls=body.source_urls,
                      selection_mode=body.selection_mode, correlation_id=correlation)
-    handle = await client.start_workflow(ResearchTaskWorkflow.run, flow, id=workflow_id, task_queue=TASK_QUEUE)
-    db.add(WorkflowRun(id=workflow_id, workspace_id=actor.workspace_id, project_id=task.project_id, task_id=task.id, task_queue=TASK_QUEUE,
-                       started_by=actor.actor_id))
+    from temporalio.exceptions import WorkflowAlreadyStartedError
+
+    try:
+        handle = await client.start_workflow(ResearchTaskWorkflow.run, flow, id=workflow_id, task_queue=TASK_QUEUE)
+    except WorkflowAlreadyStartedError as exc:
+        raise CampusError(ErrorCode.INVALID_TRANSITION, "Für diese Aufgabe läuft bereits ein Ablauf; erst stoppen oder enden lassen",
+                          blocked_action="workflow.start") from exc
+    row = db.get(WorkflowRun, workflow_id)
+    if row is None:
+        db.add(WorkflowRun(id=workflow_id, workspace_id=actor.workspace_id, project_id=task.project_id, task_id=task.id, task_queue=TASK_QUEUE,
+                           started_by=actor.actor_id))
+    else:  # a new flow after a failed or stopped one: same durable id per task, new Temporal run id in the audit record below
+        row.started_by = actor.actor_id
+        row.task_queue = TASK_QUEUE
     record(db, actor=actor, command="workflow.start", object_type="workflow", object_id=workflow_id, object_version=handle.result_run_id,
            correlation_id=correlation, project_id=task.project_id, payload={"source_urls": len(body.source_urls), "selection_mode": body.selection_mode})
     db.commit()

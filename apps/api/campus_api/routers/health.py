@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 
+from campus_gateway.adapters import approved_adapter_names
 from campus_infra.models import ModelCatalogRevision, PolicyVersion
 
 from ..settings import get_settings
@@ -13,21 +14,35 @@ from ..settings import get_settings
 router = APIRouter(tags=["operations"])
 
 
+def pilot_limitations(capability_level: str, sandbox_runner: str, temporal_mode: str, adapters: list[str]) -> list[str]:
+    """The limits that stay in force, derived from the running configuration (never from a claim). Shown in /health and in the UI."""
+    real = [a for a in adapters if a != "mock"]
+    limitations = []
+    if temporal_mode.startswith("dev-server"):
+        limitations.append("Temporal im Entwicklungsmodus (SQLite-Persistenz); nicht produktionsreif (ADR-0008)")
+    if sandbox_runner == "none":
+        limitations.append("Keine Sandbox: keine Ausführung fremden Codes auf diesem Host (S4 abgeschaltet)")
+    if capability_level == "development_mock":
+        if real:
+            limitations.append(f"Leistungsebene development_mock mit echten Adaptern ({', '.join(real)}): Modellaufrufe kosten Geld; "
+                               "Egress-Proxy fehlt (restricted_research nicht erreicht), Quellenabruf nur über den Internetdienst mit SSRF-Schutz")
+        else:
+            limitations.append("Leistungsebene development_mock: Modellaufrufe über den Mock-Adapter, Ergebnisse synthetisch")
+    if "mock" in adapters and real:
+        limitations.append("Mock-Adapter bleibt freigegeben: Ergebnisse von Mock-Deployments sind synthetisch und werden so gekennzeichnet")
+    return limitations
+
+
 @router.get("/health")
 def health() -> dict:
     """Process liveness only. LLM latency is never part of this verdict (chapter 19)."""
     s = get_settings()
     temporal_mode = os.environ.get("CAMPUS_TEMPORAL_MODE", "unknown")
-    limitations = []
-    if temporal_mode.startswith("dev-server"):
-        limitations.append("Temporal im Entwicklungsmodus (SQLite-Persistenz); nicht produktionsreif (ADR-0008)")
-    if s.sandbox_runner == "none":
-        limitations.append("Keine Sandbox: keine Ausführung fremden Codes auf diesem Host (S4 abgeschaltet)")
-    if s.capability_level == "development_mock":
-        limitations.append("Leistungsebene development_mock: Modellaufrufe über den Mock-Adapter, Ergebnisse synthetisch")
+    adapters = approved_adapter_names()
     return {"status": "ok", "capability_level": s.capability_level, "sandbox_runner": s.sandbox_runner,
             "vault": "configured" if s.vault_database_url else "missing", "build_sha": os.environ.get("CAMPUS_BUILD_SHA", "unknown"),
-            "temporal_mode": temporal_mode, "pilot_limitations": limitations}
+            "temporal_mode": temporal_mode, "approved_adapters": adapters,
+            "pilot_limitations": pilot_limitations(s.capability_level, s.sandbox_runner, temporal_mode, adapters)}
 
 
 @router.get("/ready")

@@ -5,14 +5,33 @@
 <div class="label">Komponenten</div>
 <div class="tablewrap"><table class="table"><tbody>
   {% for k, v in ready.checks.items() %}<tr><td style="font-weight:600">{{ k }}</td><td><span class="tag {% if v == 'ok' %}tag-outline{% else %}tag-accent{% endif %}">{{ v }}</span></td></tr>{% endfor %}
+  <tr><td style="font-weight:600">Build</td><td class="id">{{ build_sha }}</td></tr>
   <tr><td style="font-weight:600">Leistungsebene</td><td>{{ capability_level }}{% if mock %} <span class="tag tag-accent">Mockbetrieb</span>{% endif %}</td></tr>
+  <tr><td style="font-weight:600">Modellaufrufe</td><td>{% if live %}<span class="tag tag-outline">echt · {{ live_adapters|join(", ") }}</span> Aufrufe an echte Anbieter kosten Geld und stehen im Aufrufjournal unten.{% else %}<span class="tag tag-accent">nur Mock</span> Kein echter Anbieter im aktiven Katalog; alle Ergebnisse sind synthetisch.{% endif %}</td></tr>
+  <tr><td style="font-weight:600">Freigegebene Adapter (Prozess)</td><td>{{ approved_adapters|join(", ") }} <span style="font-size:12px;color:var(--color-neutral-700)">· CAMPUS_APPROVED_ADAPTERS; ein Deployment mit nicht freigegebenem Adapter wird nicht aufgerufen und nicht simuliert (A01)</span></td></tr>
   <tr><td style="font-weight:600">Sandboxpfad</td><td>{{ sandbox.runner_kind or "keiner" }} · {% if sandbox.accepted %}abgenommen{% else %}nicht abgenommen{% endif %} · {{ sandbox.note }}</td></tr>
   <tr><td style="font-weight:600">Aufrufe mit unbekanntem Ausgang</td><td>{{ unknown }}</td></tr>
 </tbody></table></div>
+<div class="label">Grenzen, die bestehen bleiben</div>
+{% if limitations %}<ul style="margin:6px 0 0;padding-left:18px">{% for l in limitations %}<li style="font-size:13px;margin-bottom:4px">{{ l }}</li>{% endfor %}</ul>{% else %}<div class="empty">Keine ausgewiesenen Einschränkungen.</div>{% endif %}
 <div class="label">Modellkatalog</div>
 {% if catalog.revisions %}<div class="tablewrap"><table class="table"><thead><tr><th>Katalog</th><th>Fassung</th><th>Zustand</th></tr></thead><tbody>
   {% for r in catalog.revisions %}<tr><td class="id">{{ r.catalog_id }}</td><td>{{ r.revision }}</td><td><span class="tag {% if r.state == 'active' %}tag-outline{% else %}tag-neutral{% endif %}">{{ r.state }}</span></td></tr>{% endfor %}
 </tbody></table></div>{% else %}<div class="empty">Kein Katalog importiert.</div>{% endif %}
+<div class="label">Aufrufjournal (letzte {{ journal|length }})</div>
+{% if journal %}<div class="tablewrap"><table class="table"><thead><tr><th>Zeit</th><th>Aufruf</th><th>Art</th><th>Deployment</th><th>Effektives Modell</th><th>Zustand</th><th>Tokens ein / aus</th></tr></thead><tbody>
+  {% for j in journal %}<tr>
+    <td class="nowrap" style="font-size:12px">{{ j.created_at|dt }}</td>
+    <td class="id">{{ j.id }}</td>
+    <td>{% if j.probe %}<span class="tag tag-neutral">Probe</span>{% else %}<span class="tag tag-neutral">Lauf</span>{% endif %} {% if j.synthetic %}<span class="tag tag-accent">synthetisch</span>{% else %}<span class="tag tag-outline">echt</span>{% endif %}</td>
+    <td class="id">{{ j.deployment_id }}</td>
+    <td style="font-size:12px">{{ j.effective_model_id or "–" }}</td>
+    <td><span class="tag {% if j.state == 'completed' %}tag-outline{% else %}tag-accent{% endif %}">{{ j.state }}</span>{% if j.error %} <span style="font-size:12px">{{ j.error[:80] }}</span>{% endif %}</td>
+    <td class="nowrap">{{ j.input_tokens if j.input_tokens is not none else "offen" }} / {{ j.output_tokens if j.output_tokens is not none else "offen" }}</td>
+  </tr>{% endfor %}
+</tbody></table></div>
+<div style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Jeder externe Aufruf wird vor dem Senden eingetragen (ADR-0010). «Probe» = Betriebsprobe eines Deployments ohne Forschungsbezug; «Lauf» = Selector, Erzeugung oder Gegenprüfung einer Aufgabe. «echt» heisst: Adapter eines echten Anbieters; der Mock-Adapter liefert synthetische Antworten.</div>
+{% else %}<div class="empty">Noch kein externer Aufruf protokolliert.</div>{% endif %}
 <div class="label">Budgetbaum</div>
 {% if tree %}{% for a in tree %}<div class="budget-row" style="padding-left:{{ a.depth * 16 }}px;font-weight:{{ 800 if a.depth == 0 else (600 if a.depth == 1 else 400) }}"><div>{{ a.name }}</div><div class="amt">{{ a.consumed_minor|money(a.currency) }}</div><div class="amt">{{ a.limit_minor|money(a.currency) }}</div></div>{% endfor %}
 {% else %}<div class="empty">Leer.</div>{% endif %}

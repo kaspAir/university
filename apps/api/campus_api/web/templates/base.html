@@ -37,7 +37,8 @@
     <div class="head">
       <h1 class="{% block h1class %}{% endblock %}">{% block h1 %}{% endblock %}</h1>
       <div class="meta"><span>{{ now }}</span><span>·</span><span>{{ capability_level }}</span>
-        {% if mock %}<span class="tag tag-accent" title="Leistungsebene development_mock: Modellaufrufe gehen an den Mock-Adapter; Ergebnisse sind synthetisch">Mockbetrieb</span>{% endif %}</div>
+        {% if live %}<span class="tag tag-outline" title="Aktiver Katalog mit echten Anbieterzugängen ({{ live_adapters|join(', ') }}): Modellaufrufe kosten Geld und stehen im Aufrufjournal unter Betrieb &amp; Kosten. Die Leistungsebene development_mock bleibt: kein Egress-Proxy, keine Sandbox.">echte Modellaufrufe · {{ live_adapters|join(", ") }}</span>{% endif %}
+        {% if mock %}<span class="tag tag-accent" title="Mock-Adapter im aktiven Katalog oder kein aktiver Katalog: Ergebnisse von Mock-Deployments sind synthetisch">Mockbetrieb</span>{% endif %}</div>
     </div>
     <div id="action-error" class="error-block hidden"></div>
     {% block content %}{% endblock %}

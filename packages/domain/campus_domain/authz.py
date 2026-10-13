@@ -26,6 +26,7 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "qualification.record": frozenset({Role.RESEARCH_DIRECTOR, Role.REVIEWER}),
     "qualification.bootstrap": frozenset({Role.RESEARCH_DIRECTOR}),  # role approvals that end the certification regress (chapter 7)
     "catalog.discover": frozenset({Role.OPERATOR}),
+    "catalog.probe": frozenset({Role.OPERATOR}),  # one small real call through the gateway; operations evidence, never research
     "review.start": frozenset({Role.REVIEWER, Role.RESEARCH_DIRECTOR}),
     "source.fetch": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
     "source.retract": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),

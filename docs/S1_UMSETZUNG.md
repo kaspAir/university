@@ -56,6 +56,12 @@ Für das Tor sind nötig, je Anbieter (zwei verschiedene):
 Erst wenn 1–6 für zwei Anbieter dokumentiert sind, gilt S1 als abgenommen. Bis dahin steht die Leistungsebene auf
 `development_mock`.
 
+**Stand 13.10.2026:** Der Weg durch das Tor ist gebaut und dokumentiert in `docs/BETRIEB_SERVER.md`, Abschnitt «Echte Anbieter in Betrieb
+nehmen», mit ADR-0016: Schlüssel nur im Gateway-Prozess, Discovery über das Vorlagen-Deployment (`ops/server/live_setup.py discover`),
+Preis- und Datenfreigaben plus Katalog-/Policy-Entwurf (`prepare`), Betriebsprobe je Deployment mit Journal und Kostenobergrenze
+(`campus-admin probe-invocation`), Aktivierung (`activate`). Die Punkte 1–6 sind erst erfüllt, wenn die Proben auf dem Zielserver im
+Aufrufjournal stehen; die Leistungsebene bleibt auch dann `development_mock` (Egress-Proxy und Sandbox fehlen).
+
 ## 4 Entscheide
 
 - **ADR-0007** Adapterdisziplin: keine SDK-Wiederholungen, keine serverseitigen Fallbacks, Geheimnisse nur im Gateway,
