@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Phronesis-Campus{% endblock %}</title>
-<link rel="stylesheet" href="/campus/static/tokens.css">
-<link rel="stylesheet" href="/campus/static/campus.css">
+<link rel="stylesheet" href="/campus/static/tokens.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/campus/static/campus.css?v={{ asset_version }}">
 </head>
 <body data-csrf="{{ csrf }}" data-user-id="{{ user.id }}">
 <div class="shell">
@@ -44,6 +44,6 @@
   </main>
 </div>
 <script>window.CAMPUS_TASK_DEFAULTS = {{ task_defaults_json|safe }};</script>
-<script src="/campus/static/campus.js"></script>
+<script src="/campus/static/campus.js?v={{ asset_version }}"></script>
 </body>
 </html>

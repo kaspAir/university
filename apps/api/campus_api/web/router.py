@@ -3,6 +3,7 @@ JSON API from the browser with CSRF and Idempotency-Key, so there is exactly one
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,6 +52,8 @@ from .steps import MANDATE_DEFAULTS, TASK_DEFAULTS, next_step
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+# static files change with every build; the query string forces browsers to fetch the version that belongs to this build
+ASSET_VERSION = (os.environ.get("CAMPUS_BUILD_SHA") or "dev")[:12]
 
 WEEKDAYS = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
 STATUS_ORDER = ("observation", "derivation", "supported", "contested", "refuted", "hypothesis", "unresolved")
@@ -130,7 +133,8 @@ def _ctx(request: Request, db: Session, actor: Actor, view: str, **extra) -> dic
             "capability_level": settings.capability_level, "mock": settings.capability_level == "development_mock",
             "now": fmt_dt(datetime.now(UTC)), "csrf": request.state.session_row.csrf_token, "counters": _counters(db, actor),
             "can_stop": bool({"research_director", "integrity_officer"} & {r.value for r in actor.roles}),
-            "can_decide": "research_director" in {r.value for r in actor.roles}, "task_defaults_json": json.dumps(TASK_DEFAULTS), **extra}
+            "can_decide": "research_director" in {r.value for r in actor.roles}, "task_defaults_json": json.dumps(TASK_DEFAULTS),
+            "asset_version": ASSET_VERSION, **extra}
 
 
 def _render(name: str, ctx: dict) -> HTMLResponse:
@@ -147,7 +151,7 @@ def _catalog_index(db: Session, actor: Actor) -> dict[str, dict]:
 def login_page(request: Request, db: Session = Depends(get_db)):
     workspaces = db.execute(select(Workspace).order_by(Workspace.created_at)).scalars().all()
     return templates.TemplateResponse(request, "login.html", {"request": request, "error": None, "workspaces": workspaces,
-                                                              "capability_level": get_settings().capability_level, "username": ""})
+                                                              "capability_level": get_settings().capability_level, "username": "", "asset_version": ASSET_VERSION})
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -160,7 +164,8 @@ def login_submit(request: Request, workspace_id: str = Form(...), username: str 
         db.rollback()
         workspaces = db.execute(select(Workspace).order_by(Workspace.created_at)).scalars().all()
         return templates.TemplateResponse(request, "login.html", {"request": request, "error": err.message, "workspaces": workspaces,
-                                                                  "capability_level": settings.capability_level, "username": username}, status_code=401)
+                                                                  "capability_level": settings.capability_level, "username": username,
+                                                                  "asset_version": ASSET_VERSION}, status_code=401)
     db.commit()
     response = RedirectResponse("/campus", status_code=303)
     response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict", secure=settings.cookie_secure,
