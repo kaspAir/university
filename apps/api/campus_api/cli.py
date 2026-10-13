@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from campus_domain.authz import Role
+from campus_domain.errors import CampusError
 from campus_infra.audit import Actor
 from campus_infra.db import make_engine, make_session_factory
 
@@ -91,8 +92,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "probe-invocation":
             from . import services_probe
 
-            result = services_probe.probe_deployment(db, actor=_system_actor(args.workspace), deployment_id=args.deployment_id,
-                                                     max_cost=args.max_cost, currency=args.currency, correlation_id=correlation)
+            try:
+                result = services_probe.probe_deployment(db, actor=_system_actor(args.workspace), deployment_id=args.deployment_id,
+                                                         max_cost=args.max_cost, currency=args.currency, correlation_id=correlation)
+            except CampusError as err:  # a refused or failed probe is a result too: the error object, journaled and audited, no traceback
+                print(json.dumps({"probe": "failed", **err.to_object("cli")}, indent=1, ensure_ascii=False, default=str))
+                return 2
             print(json.dumps(result, indent=1, ensure_ascii=False, default=str))
         elif args.cmd == "import-catalog":
             row = services_governance.import_catalog(db, actor=_system_actor(args.workspace), document=_load(args.path),
