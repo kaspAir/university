@@ -109,6 +109,19 @@
     } catch (e) { fail(projectForm, e); }
   });
   const workflowForm = document.querySelector("[data-journey=workflow]");
+  /* A new flow is offered after a version was returned for rework; if the previous flow is still running, show its state instead. */
+  if (workflowForm && workflowForm.dataset.workflowCheck) (async function check() {
+    try {
+      const res = await fetch("/api/v1/workflows/" + workflowForm.dataset.workflowCheck, { credentials: "same-origin" });
+      const data = await res.json();
+      if (data.status === "RUNNING") {
+        workflowForm.querySelectorAll("textarea, label, button, ul").forEach(el => el.classList.add("hidden"));
+        const box = workflowForm.querySelector("[data-f=running]"); box.classList.remove("hidden");
+        box.querySelector("[data-f=status]").textContent = data.status; box.querySelector("[data-f=stage]").textContent = data.stage ? "· Stufe " + data.stage : "";
+        setTimeout(check, 5000);
+      } else if (workflowForm.querySelector("[data-f=running]:not(.hidden)")) { location.reload(); }
+    } catch (e) { /* the service is unreachable: the form stays usable; the API refuses a second concurrent flow anyway */ }
+  })();
   if (workflowForm) workflowForm.querySelector("[data-submit]").addEventListener("click", async () => {
     try {
       await command("/tasks/" + workflowForm.dataset.task + "/workflow", { source_urls: lines(val(workflowForm, "source_urls")), selection_mode: "llm" });

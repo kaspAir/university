@@ -51,7 +51,8 @@
 
     {% if step.action == "workflow" and task %}
       <div class="label">Ablauf</div>
-      <form data-journey="workflow" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}" onsubmit="return false">
+      <form data-journey="workflow" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}"{% if workflow %} data-workflow-check="{{ workflow.id }}"{% endif %} onsubmit="return false">
+        <div data-f="running" class="finding hidden">Ablauf <span class="id">{{ workflow.id if workflow else "" }}</span> läuft noch · Stand: <strong data-f="status">…</strong> <span data-f="stage"></span></div>
         <label class="label" style="margin-top:0">Öffentliche Quellen (eine URL je Zeile, optional)</label>
         <textarea class="input" name="source_urls" rows="3" placeholder="https://…"></textarea>
         {% if known_sources %}<div style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Bereits gespeicherte öffentliche Quellen dieses Workspace (werden für dieses Projekt neu abgerufen und fassungsgenau gespeichert):

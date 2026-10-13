@@ -62,6 +62,10 @@ def next_step(*, stopped: bool, mandate_state: str | None, projects: int, tasks:
     approval = latest.get("approval")
     if approval and approval.get("valid_for_current") and not approval.get("basis_withdrawn_after_approval") and approval.get("option") in ("accept", "accept_limited"):
         return {"code": "approved", "title": "Ergebnis freigegeben", "hint": "Externe Freigabe und Einreichung bleiben ein gesonderter vorbehaltener Entscheid (Art. 22).", "action": None}
+    if approval and approval.get("valid_for_current") and approval.get("option") == "revise":
+        return {"code": "rework", "title": "Zur Überarbeitung: neuen Ablauf starten",
+                "hint": "Die Forschungsleitung hat diese Fassung zur Überarbeitung zurückgegeben. Ein neuer Ablauf ist eine neue Route: Erzeugung, "
+                        "Gegenprüfung und eine neue Dossierfassung; die alte Fassung bleibt lesbar.", "action": "workflow"}
     if approval and approval.get("basis_withdrawn_after_approval"):
         return {"code": "basis_withdrawn", "title": "Grundlage nach Freigabe zurückgezogen", "hint": "Neubewertung fällig; die Freigabe trägt die Fassung nicht mehr (T09).", "action": "read"}
     return {"code": "judge", "title": "Ergebnis beurteilen", "hint": "Dossier lesen und die Ergebnisfreigabe entscheiden (Art. 11): annehmen, begrenzt, überarbeiten, ablehnen.", "action": "read"}

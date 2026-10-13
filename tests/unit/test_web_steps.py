@@ -27,6 +27,9 @@ def test_steps_follow_the_control_path() -> None:
     assert _ns(runs=[{"state": "finished"}], reviews=[{"id": "r"}], artifacts=ok)["code"] == "approved"
     stale = [{"kind": "dossier", "approval": {"option": "accept", "valid_for_current": False, "basis_withdrawn_after_approval": False}}]
     assert _ns(runs=[{"state": "finished"}], reviews=[{"id": "r"}], artifacts=stale)["code"] == "judge", "an old approval does not cover a new version"
+    rework = [{"kind": "dossier", "approval": {"option": "revise", "valid_for_current": True, "basis_withdrawn_after_approval": False}}]
+    step = _ns(runs=[{"state": "finished"}], reviews=[{"id": "r"}], artifacts=rework)
+    assert step["code"] == "rework" and step["action"] == "workflow", "a version returned for rework opens a new flow"
     gone = [{"kind": "dossier", "approval": {"option": "accept", "valid_for_current": True, "basis_withdrawn_after_approval": True}}]
     assert _ns(runs=[{"state": "finished"}], reviews=[{"id": "r"}], artifacts=gone)["code"] == "basis_withdrawn"
 
