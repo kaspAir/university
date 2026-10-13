@@ -28,7 +28,11 @@ class OpenAIAdapter:
 
     def _client(self, secret_ref: str | None, api_base: str | None) -> openai.OpenAI:
         check_api_base(self.name, api_base)  # the key travels only to the approved endpoint (S1.1 finding 5)
-        return openai.OpenAI(api_key=self._secrets.resolve(secret_ref), base_url=api_base or None, max_retries=0, timeout=self._timeout)
+        # The official adapter is bound to the host; the SDK's own default already carries the version path (https://api.openai.com/v1/),
+        # so the catalog's host-only api_base must not replace it (it would turn /v1/models into /models: 404). Compatible endpoints
+        # give their full base themselves.
+        base_url = None if self.name == "openai" else (api_base or None)
+        return openai.OpenAI(api_key=self._secrets.resolve(secret_ref), base_url=base_url, max_retries=0, timeout=self._timeout)
 
     def list_models(self, secret_ref: str | None, api_base: str | None) -> list[str]:
         client = self._client(secret_ref, api_base)
