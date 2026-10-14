@@ -37,7 +37,7 @@ from campus_infra.models import (
 
 EXTRACTOR_VERSION = "campus-extract/1"
 SUPPORTED_TYPES = ("text/html", "text/plain", "application/xhtml+xml", "application/json")
-TIMEOUT_SECONDS = 20.0
+TIMEOUT_SECONDS = 60.0  # per hop; a slower server is a recorded gap, never a failed run
 MIN_PASSAGE_CHARS = 40
 REASSESSMENT_DUE_DAYS = 14
 

@@ -61,11 +61,23 @@ class FakeAnthropicMessages:
         self.outcome = outcome
         self.calls: list[dict] = []
 
-    def create(self, **kwargs):
+    def stream(self, **kwargs):  # the adapter streams; the context manager yields the final message
         self.calls.append(kwargs)
         if isinstance(self.outcome, Exception):
             raise self.outcome
-        return self.outcome
+        outcome = self.outcome
+
+        class _Stream:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def get_final_message(self):
+                return outcome
+
+        return _Stream()
 
 
 def _anthropic_message(text: str, stop_reason: str = "end_turn", model: str = "configured-model-id-2026") -> SimpleNamespace:
@@ -140,17 +152,17 @@ class FakeCompletions:
         self.outcome = outcome
         self.calls: list[dict] = []
 
-    def create(self, **kwargs):
+    def create(self, **kwargs):  # the adapter streams: an iterator of chunks, usage in the last one
         self.calls.append(kwargs)
         if isinstance(self.outcome, Exception):
             raise self.outcome
-        return self.outcome
+        return iter(self.outcome)
 
 
-def _openai_completion(text: str, finish_reason: str = "stop", refusal=None) -> SimpleNamespace:
-    message = SimpleNamespace(content=text, tool_calls=None, refusal=refusal)
-    return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason=finish_reason)], model="configured-model-id-v1",
-                           usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5))
+def _openai_completion(text: str, finish_reason: str = "stop", refusal=None) -> list:
+    delta = SimpleNamespace(content=text or None, tool_calls=None, refusal=refusal)
+    return [SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)], model="configured-model-id-v1", usage=None),
+            SimpleNamespace(choices=[], model="configured-model-id-v1", usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5))]
 
 
 def _openai_adapter(outcome, name="openai") -> tuple[OpenAIAdapter, FakeCompletions]:
@@ -167,8 +179,8 @@ def test_openai_request_shape_and_strict_schema(catalog):
     call = fake.calls[0]
     assert call["model"] == "configured-model-id"
     assert call["response_format"]["type"] == "json_schema" and call["response_format"]["json_schema"]["strict"] is True
-    assert call["messages"][0]["role"] == "system"
-    assert response.effective_model_id == "configured-model-id-v1" and response.stop_reason == "end_turn"
+    assert call["messages"][0]["role"] == "system" and call["stream"] is True and call["stream_options"] == {"include_usage": True}
+    assert response.effective_model_id == "configured-model-id-v1" and response.stop_reason == "end_turn" and response.usage.known
 
 
 @pytest.mark.parametrize(

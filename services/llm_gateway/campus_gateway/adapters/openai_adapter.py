@@ -21,7 +21,7 @@ from ..port import (
 
 
 class OpenAIAdapter:
-    def __init__(self, secrets, name: str = "openai", timeout_seconds: float = 180.0):
+    def __init__(self, secrets, name: str = "openai", timeout_seconds: float = 900.0):
         self.name = name
         self._secrets = secrets
         self._timeout = timeout_seconds
@@ -68,8 +68,30 @@ class OpenAIAdapter:
                                                   "parameters": t["input_schema"], "strict": True}}
                 for t in request.tool_definitions
             ]
+        content, refusal, tool_slots = [], [], {}
+        finish_reason, model_id, usage = None, None, None
         try:
-            completion = client.chat.completions.create(**kwargs)
+            # streamed with usage in the final chunk: the client timeout bounds the silence between chunks, not the whole answer
+            stream = client.chat.completions.create(**kwargs, stream=True, stream_options={"include_usage": True})
+            for chunk in stream:
+                model_id = chunk.model or model_id
+                if getattr(chunk, "usage", None):
+                    usage = chunk.usage
+                for choice in chunk.choices or []:
+                    delta = choice.delta
+                    if delta is not None:
+                        if delta.content:
+                            content.append(delta.content)
+                        if getattr(delta, "refusal", None):
+                            refusal.append(delta.refusal)
+                        for call in getattr(delta, "tool_calls", None) or []:
+                            slot = tool_slots.setdefault(call.index, {"id": None, "name": "", "arguments": ""})
+                            slot["id"] = call.id or slot["id"]
+                            if call.function is not None:
+                                slot["name"] += call.function.name or ""
+                                slot["arguments"] += call.function.arguments or ""
+                    if choice.finish_reason:
+                        finish_reason = choice.finish_reason
         except openai.APITimeoutError as exc:
             raise ProviderTimeout(str(exc)) from exc
         except openai.RateLimitError as exc:
@@ -82,29 +104,22 @@ class OpenAIAdapter:
                 raise ProviderUnavailable(f"{exc.status_code}") from exc
             raise ProviderRejected(f"{exc.status_code}: {exc.message}") from exc
         except openai.APIConnectionError as exc:
+            if content or finish_reason:  # the connection broke mid-answer: the provider processed the request
+                raise ProviderTimeout(f"Verbindung während der Antwort abgebrochen: {exc}") from exc
             raise ProviderUnavailable(str(exc)) from exc
-        choice = completion.choices[0]
-        if choice.finish_reason == "content_filter" or getattr(choice.message, "refusal", None):
-            usage = completion.usage
-            raise ProviderRefusal("content_filter", getattr(choice.message, "refusal", None),
-                                  usage=Usage(input_tokens=usage.prompt_tokens if usage else None,
-                                              output_tokens=usage.completion_tokens if usage else None))
-        blocks = []
-        if choice.message.content:
-            blocks.append({"type": "text", "text": choice.message.content, "origin": "provider"})
-        tool_requests = [
-            {"id": call.id, "name": call.function.name, "input_json": call.function.arguments}
-            for call in (choice.message.tool_calls or [])
-        ]
-        usage = completion.usage
+        used = Usage(input_tokens=usage.prompt_tokens if usage else None, output_tokens=usage.completion_tokens if usage else None)
+        if finish_reason == "content_filter" or refusal:
+            raise ProviderRefusal("content_filter", "".join(refusal) or None, usage=used)
+        blocks = [{"type": "text", "text": "".join(content), "origin": "provider"}] if content else []
+        tool_requests = [{"id": s["id"], "name": s["name"], "input_json": s["arguments"]} for _, s in sorted(tool_slots.items())]
         return LLMResponse(
             invocation_id=request.invocation_id,
             deployment_id=deployment.id,
-            effective_model_id=completion.model,
+            effective_model_id=model_id or deployment.provider_model_id,
             blocks=blocks,
             tool_requests=tool_requests,
-            stop_reason={"stop": "end_turn", "length": "max_tokens", "tool_calls": "tool_use"}.get(choice.finish_reason or "", choice.finish_reason or "unknown"),
-            usage=Usage(input_tokens=usage.prompt_tokens if usage else None, output_tokens=usage.completion_tokens if usage else None),
+            stop_reason={"stop": "end_turn", "length": "max_tokens", "tool_calls": "tool_use"}.get(finish_reason or "", finish_reason or "unknown"),
+            usage=used,
             safety_status="not_refused",
             raw_ref=None,
         )

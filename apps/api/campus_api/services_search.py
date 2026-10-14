@@ -63,7 +63,7 @@ SELECT_RULES = (
 
 
 def _plan_hints(gaps: list[str]) -> list[str]:
-    return [g.strip() for g in gaps if g and g.strip()][:12]
+    return [g.strip() for g in gaps if g and g.strip()]
 
 
 def discover_sources(db: Session, *, actor: Actor, task_id: str, routing_decision_id: str, round_no: int, gaps: list[str],
@@ -81,6 +81,19 @@ def discover_sources(db: Session, *, actor: Actor, task_id: str, routing_decisio
     if decision_row is None or decision_row.task_id != task.id:
         raise CampusError(ErrorCode.ROUTE_NOT_AUTHORIZED, "Routingentscheid gehört nicht zu dieser Aufgabe", blocked_action="source.discover")
     decision = RoutingDecision.model_validate(decision_row.document)
+    done = [a for a in db.execute(select(ArtifactVersion).where(ArtifactVersion.task_id == task.id, ArtifactVersion.kind == "source_map")
+                                  .order_by(ArtifactVersion.version)).scalars() if a.content.get("round") == round_no]
+    if done:  # a restarted flow does not search and pay again for a round this task already completed; its sources are in the library
+        c = done[-1].content
+        record(db, actor=actor, command="source.discover", object_type="artifact", object_id=done[-1].id, object_version=str(done[-1].version),
+               correlation_id=correlation_id, project_id=task.project_id, payload={"task_id": task.id, "round": round_no, "reused": True})
+        db.commit()
+        return {"round": round_no, "artifact_version_id": done[-1].id, "sha256": done[-1].sha256, "queries": len(c.get("queries", [])),
+                "hits": len(c.get("hits", [])), "selected": len(c.get("selected", [])), "fetched": len(c.get("fetched", [])),
+                "gaps": len(c.get("gaps", [])),
+                "uncovered_sub_question_ids": [g["sub_question_id"] for g in c.get("gaps", []) if g.get("kind") == "uncovered_sub_question"],
+                "follow_up_queries": c.get("follow_up_queries", []), "costs_minor": c.get("costs_minor", {}), "synthetic": c.get("synthetic", False),
+                "reused": True}
     settings = get_settings()
     search = search if search is not None else build_search(settings.search_provider)
     if search is None:

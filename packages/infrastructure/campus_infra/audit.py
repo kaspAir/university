@@ -16,6 +16,14 @@ class Actor:
     roles: frozenset = frozenset()
 
 
+def _fit(value: str | None, width: int) -> str | None:
+    if value is None or len(value) <= width:
+        return value
+    import hashlib
+
+    return value[: width - 9] + "~" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:8]
+
+
 def record(
     session: Session,
     *,
@@ -30,7 +38,12 @@ def record(
     event_type: str | None = None,
     project_id: str | None = None,
 ) -> AuditEvent:
-    """Append one audit event and, for allowed commands, one outbox event. Payloads carry IDs, not full texts."""
+    """Append one audit event and, for allowed commands, one outbox event. Payloads carry IDs, not full texts.
+
+    Identifier columns have fixed widths; a long value (an address, a provider message) is shortened to the column with a hash tail so an
+    audit write never fails for its length (first F-01 discovery, 14.10.2026: a search hit address longer than 80 characters)."""
+    command, object_type, object_id = _fit(command, 80), _fit(object_type, 40), _fit(object_id, 80)
+    object_version, policy_decision, correlation_id = _fit(object_version, 40), _fit(policy_decision, 40), _fit(correlation_id, 80)
     event = AuditEvent(
         workspace_id=actor.workspace_id,
         actor_type=actor.actor_type,

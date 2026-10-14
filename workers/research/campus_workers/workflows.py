@@ -29,6 +29,8 @@ with workflow.unsafe.imports_passed_through():
 RETRY = RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=1), backoff_coefficient=2.0)
 GENERATION_RETRY = RetryPolicy(maximum_attempts=1)  # a failed generation is not retried blindly; the workflow replans through the core
 STEP_TIMEOUT = timedelta(minutes=10)
+# model steps stream their answers; this only catches a stuck activity, it never cuts a long answer short
+MODEL_STEP_TIMEOUT = timedelta(hours=1)
 MAX_GENERATION_ATTEMPTS = 3
 
 
@@ -82,7 +84,7 @@ class ResearchTaskWorkflow:
                     disc = await workflow.execute_activity(
                         discover_sources,
                         DiscoverArgs(flow.workspace_id, flow.task_id, decision_id, rounds, gaps, flow.max_queries, flow.max_sources, flow.correlation_id),
-                        start_to_close_timeout=STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
+                        start_to_close_timeout=MODEL_STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
                     discoveries.append(disc)
                     self._result["discovery"] = discoveries
                     if disc.get("skipped") and not self._result.get("source_ids") and not any(d.get("fetched") for d in discoveries):
@@ -95,7 +97,7 @@ class ResearchTaskWorkflow:
                         return stopped
                 self._stage = "generating"
                 run = await workflow.execute_activity(run_generation, RunArgs(flow.workspace_id, flow.task_id, decision_id, flow.correlation_id),
-                                                      start_to_close_timeout=STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
+                                                      start_to_close_timeout=MODEL_STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
                 attempts.append({"routing_decision_id": decision_id, "state": run.get("state"), "end_reason": run.get("end_reason")})
                 self._result["run"], self._result["attempts"] = run, attempts
                 if run.get("state") == "finished" or run.get("end_reason") != "provider_error":
@@ -108,7 +110,7 @@ class ResearchTaskWorkflow:
                 return stopped
             self._stage = "reviewing"
             review = await workflow.execute_activity(
-                review_run, ReviewArgs(flow.workspace_id, run["run_attempt_id"], flow.correlation_id), start_to_close_timeout=STEP_TIMEOUT,
+                review_run, ReviewArgs(flow.workspace_id, run["run_attempt_id"], flow.correlation_id), start_to_close_timeout=MODEL_STEP_TIMEOUT,
                 retry_policy=RETRY, task_queue=flow.review_task_queue or workflow.info().task_queue,  # separate reviewer instances (Art. 17)
             )
             self._result["review"] = review

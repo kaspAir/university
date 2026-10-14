@@ -15,7 +15,7 @@ from .errors import CampusError, ErrorCode
 ALLOWED_SCHEMES = {"https", "http"}
 ALLOWED_PORTS = {80, 443}
 MAX_REDIRECTS = 5
-MAX_BYTES = 5 * 1024 * 1024
+MAX_BYTES = 50 * 1024 * 1024  # memory guard on a shared host; a larger page is a recorded gap, never a failed run
 EXPORTABLE_LABELS = {"public"}
 
 _BLOCKED_HOSTNAMES = {"localhost", "metadata", "metadata.google.internal", "instance-data"}

@@ -8,7 +8,7 @@ from campus_contracts.models import ClaimSet
 from campus_domain.claims import classify
 from campus_domain.errors import CampusError, ErrorCode
 from campus_domain.experiments import evidence_valid
-from campus_infra.audit import Actor, record
+from campus_infra.audit import Actor, _fit, record
 from campus_infra.ids import new_id
 from campus_infra.models import (
     ArtifactVersion,
@@ -72,7 +72,7 @@ def record_claim_set(db: Session, *, actor: Actor, task: Task, attempt: RunAttem
         cls = classify(item.kind, len(valid) + len(valid_runs), len(invalid), len(unmeasured_runs))
         claim = ClaimVersion(
             id=new_id("C"), workspace_id=actor.workspace_id, project_id=task.project_id, task_id=task.id, run_attempt_id=attempt.id,
-            artifact_version_id=artifact.id, claim_id=new_id("CL"), version=1, local_id=item.local_id, statement=item.statement,
+            artifact_version_id=artifact.id, claim_id=new_id("CL"), version=1, local_id=_fit(item.local_id, 80), statement=item.statement,
             declared_kind=cls.declared_kind, stored_kind=cls.stored_kind, epistemic_status=cls.epistemic_status.value,
             assessment_ref=assessment_ref, validity_conditions=item.validity_conditions, flags=list(cls.flags),
             producer_canonical_model_id=producer_canonical_model_id,

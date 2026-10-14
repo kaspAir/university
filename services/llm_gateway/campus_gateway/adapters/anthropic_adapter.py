@@ -3,6 +3,7 @@
 Deliberate choices, all traceable to the architecture:
 - model id from the catalog deployment (I01); no default model in code
 - max_retries=0: technical failures re-enter campus routing instead of silent SDK retries (chapter 10)
+- streamed responses: no wall-clock limit for long answers; the timeout is the idle limit between chunks
 - no server-side fallbacks parameter: a refusal is reported, never routed around (I08, policy.fallback)
 - structured output through output_config.format (technically enforced), never a "please answer in JSON" prompt (A08)
 - thinking left at the model default; the raw chain of thought is not requested or stored
@@ -29,7 +30,7 @@ from ..port import (
 class AnthropicAdapter:
     name = "anthropic"
 
-    def __init__(self, secrets, timeout_seconds: float = 180.0):
+    def __init__(self, secrets, timeout_seconds: float = 900.0):
         self._secrets = secrets
         self._timeout = timeout_seconds
 
@@ -74,7 +75,10 @@ class AnthropicAdapter:
                 for t in request.tool_definitions
             ]
         try:
-            message = client.messages.create(**kwargs)
+            # streamed: the client timeout then bounds the silence between two chunks, not the whole answer. A long, well-sourced answer
+            # must never fail because the campus waited a fixed time for it (first F-01 generation, 14.10.2026, cut at 180 s).
+            with client.messages.stream(**kwargs) as stream:
+                message = stream.get_final_message()
         except anthropic.APITimeoutError as exc:
             raise ProviderTimeout(str(exc)) from exc
         except anthropic.RateLimitError as exc:
