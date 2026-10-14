@@ -19,10 +19,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from campus_contracts.models import (
     AgentProfile,
+    ClaimRevision,
     ClaimSet,
     Deployment,
     ModelCatalog,
     ReviewReport,
+    RevisionReview,
     RouteProposal,
     RoutingDecision,
     SkillManifest,
@@ -50,8 +52,10 @@ from campus_infra.journal import DbInvocationJournal
 from campus_infra.models import (
     AgentProfileVersion,
     ArtifactVersion,
+    AuditEvent,
     BudgetAccount,
     ClaimVersion,
+    EvidenceLink,
     ExperimentRun,
     FindingRecord,
     Institute,
@@ -68,6 +72,9 @@ from campus_infra.models import (
     RoutingDecisionRecord,
     RunAttempt,
     SkillVersion,
+    Source,
+    SourcePassage,
+    SourceVersion,
     Task,
     Workspace,
 )
@@ -741,7 +748,8 @@ def _hold_task(db: Session, task: Task, reason: str) -> None:
     task.hold_since = utcnow()
 
 
-def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: str, correlation_id: str) -> dict:
+def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: str, correlation_id: str,
+              revision_of_run_id: str | None = None, revision_note: str = "") -> dict:
     """Guard, persist the call order, execute one generation call through the authorized route, settle its cost, freeze the output
     as an artifact and record the declared claims (S2). Synchronous; the workflow layer sequences it (chapter 6)."""
     authorize("run.start", actor.roles)
@@ -791,6 +799,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     deployment = catalog.deployment(decision.selected_deployment_id)
     pricing = _pricing(db, actor.workspace_id, deployment.pricing_ref)
     passages = services_claims.project_passages(db, task.project_id)
+    revision = _revision_context(db, actor, task.project_id, revision_of_run_id, revision_note) if revision_of_run_id else None
     content_blocks = [
         _mandate_block(mandate, need, audience="producer"),
         {"type": "text", "text": f"Aufgabe {task.id} ({need.task_class}). Beantworte die Forschungsfrage des Mandats im Rahmen seines "
@@ -799,9 +808,9 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
                                  "sachlichen Untersuchungsfragen und unter omissions, was du nicht bewertet hast.",
          "data_label": need.data_labels[0], "origin": "task"},
     ]
-    for p in passages:
-        content_blocks.append({"type": "text", "text": f"[passage_id={p['passage_id']} quelle={p['source_id']} v{p['version']}]\n{p['text']}",
-                               "data_label": need.data_labels[0], "origin": "source_passage"})
+    if revision is not None:
+        content_blocks.append({"type": "text", "data_label": need.data_labels[0], "origin": "revision", "text": revision["text"]})
+    content_blocks += _passage_blocks(db, task.project_id, passages, need.data_labels[0])
     # S4: frozen experiment runs of the project as the runner recorded them (state, hashes); stdout is handed over as content only
     experiments = db.execute(select(ExperimentRun).where(ExperimentRun.project_id == task.project_id, ExperimentRun.state != "running")
                              .order_by(ExperimentRun.created_at)).scalars().all()
@@ -814,10 +823,12 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     request = LLMRequest(
         invocation_id=f"{attempt.id}:gen:1", deployment_id=deployment.id,
         system_rules=composition.system_rules + " Antworte ausschliesslich im vorgegebenen JSON-Format.",
-        content_blocks=content_blocks, output_contract=provider_schema("claim_set") if structured else None,
+        content_blocks=content_blocks,
+        output_contract=(provider_schema("claim_revision") if revision else provider_schema("claim_set")) if structured else None,
         max_output_tokens=_output_bound(db, task, deployment, pricing, generation, need.context_tokens_estimate, need.max_output_tokens),
         metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "passage_ids": [p["passage_id"] for p in passages],
-                  "experiment_run_ids": [x.id for x in experiments], "task_class": need.task_class, "composition_key": composition.combination_key},
+                  "experiment_run_ids": [x.id for x in experiments], "task_class": need.task_class, "composition_key": composition.combination_key,
+                  "finding_ids": [f["finding_id"] for f in revision["findings"]] if revision else []},
     )
     try:
         response = _gateway(db, actor.workspace_id).invoke(request, deployment, decision)
@@ -841,6 +852,9 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     db.commit()  # consumed cost survives any later content failure
     synthetic = any(b.get("synthetic") for b in response.blocks)
     content = {"blocks": response.blocks, "stop_reason": response.stop_reason, "effective_model_id": response.effective_model_id}
+    if revision is not None:
+        content["revision_of_run_id"] = revision_of_run_id
+        content["revised_finding_ids"] = [f["finding_id"] for f in revision["findings"]]
     digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
     artifact = ArtifactVersion(id=new_id("A"), workspace_id=actor.workspace_id, task_id=task.id, run_attempt_id=attempt.id, project_id=task.project_id,
                                kind="generation_output", content=content, sha256=digest,
@@ -852,7 +866,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     if structured:
         try:
             _check_not_truncated(response, "Erzeugungsantwort")
-            claim_set = ClaimSet.model_validate(json.loads(response.text()))
+            claim_set = (ClaimRevision if revision is not None else ClaimSet).model_validate(json.loads(response.text()))
             claim_set_valid = True
         except Exception as exc:  # kept as artifact, no claims, flagged in the audit
             claim_set_valid = False
@@ -862,6 +876,9 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
                             "stop_reason": response.stop_reason, "output_tokens": response.usage.output_tokens})
         else:
             declared = {"open_questions": list(claim_set.open_questions), "omissions": list(claim_set.omissions)}
+            if revision is not None:
+                declared["finding_responses"] = [r.model_dump() for r in claim_set.finding_responses]
+                declared["revision_of_run_id"] = revision_of_run_id
             claims_recorded = len(services_claims.record_claim_set(db, actor=actor, task=task, attempt=attempt, artifact=artifact, claim_set=claim_set,
                                                                   producer_canonical_model_id=decision.selected_canonical_model_id,
                                                                   correlation_id=correlation_id))
@@ -884,6 +901,103 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         "synthetic": synthetic, "claims_recorded": claims_recorded, "claim_set_valid": claim_set_valid, "passages_given": len(passages),
         **declared,
     }
+
+
+
+def _source_register(db: Session, project_id: str) -> dict[str, dict]:
+    """Register entries per source: address, title (from the campus's own source map, if it found the source), latest fetch."""
+    titles: dict[str, str] = {}
+    for art in db.execute(select(ArtifactVersion).where(ArtifactVersion.project_id == project_id, ArtifactVersion.kind == "source_map")).scalars():
+        for s in art.content.get("selected", []):
+            titles.setdefault(s.get("url", ""), s.get("title", ""))
+    out = {}
+    for src in db.execute(select(Source).where(Source.project_id == project_id)).scalars():
+        version = db.execute(select(SourceVersion).where(SourceVersion.source_id == src.id).order_by(SourceVersion.version.desc())).scalars().first()
+        out[src.id] = {"url": src.normalized_url, "title": titles.get(src.normalized_url, ""), "host": src.host,
+                       "fetched": version.fetched_at.date().isoformat() if version else "", "content_type": version.content_type if version else "",
+                       "version": version.version if version else None}
+    return out
+
+
+def _xml_attr(value) -> str:
+    return str(value or "").replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+
+
+def _passage_blocks(db: Session, project_id: str, passages: list[dict], data_label: str) -> list[dict]:
+    """Passages as closed, self-describing blocks with the register entry of their source. Open headers followed by loose text let the
+    first live run cite the neighbouring passage (F-01 v2, 14.10.2026: stored ids identical to the cited ones, content off by one).
+    Exact duplicates within a source (cookie banners, navigation) are given once."""
+    register = _source_register(db, project_id)
+    seen: set[tuple[str, str]] = set()
+    blocks = []
+    for p in passages:
+        key = (p["source_id"], p["text"].strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        r = register.get(p["source_id"], {})
+        blocks.append({"type": "text", "data_label": data_label, "origin": "source_passage", "passage_id": p["passage_id"],
+                       "text": f'<passage id="{p["passage_id"]}" source="{p["source_id"]}" n="{p.get("ordinal", "")}" url="{_xml_attr(r.get("url"))}" '
+                               f'title="{_xml_attr(r.get("title"))}" fetched="{r.get("fetched", "")}">\n{p["text"]}\n</passage id="{p["passage_id"]}">'})
+    return blocks
+
+
+def _revision_context(db: Session, actor: Actor, project_id: str, run_id: str, note: str) -> dict:
+    """What a targeted revision works from: the previous run's claims with their cited passages, the findings of its review, the
+    director's note. Same sources, no new research."""
+    prev = _own(db, RunAttempt, run_id, actor, "Lauf")
+    prev_task = db.get(Task, prev.task_id)
+    if prev_task is None or prev_task.project_id != project_id or prev.state != RunState.FINISHED.value:
+        raise CampusError(ErrorCode.INVALID_TRANSITION, "Überarbeitet wird nur ein beendeter Lauf desselben Projekts", blocked_action="run.start")
+    claims = db.execute(select(ClaimVersion).where(ClaimVersion.run_attempt_id == prev.id).order_by(ClaimVersion.local_id)).scalars().all()
+    # every open finding of the project: findings on earlier versions block a release just as much as those on the selected run
+    findings = db.execute(select(FindingRecord).join(Task, Task.id == FindingRecord.task_id)
+                          .where(Task.project_id == project_id, FindingRecord.status == "open").order_by(FindingRecord.id)).scalars().all()
+    previous = []
+    for c in claims:
+        links = db.execute(select(EvidenceLink).where(EvidenceLink.claim_version_id == c.id)).scalars().all()
+        previous.append({"local_id": c.local_id, "kind": c.declared_kind, "statement": c.statement, "validity_conditions": c.validity_conditions,
+                         "evidence": [{"passage_id": e.source_passage_id, "note": e.note} for e in links if e.source_passage_id]})
+    payload = {"revision_of_run_id": prev.id,
+               "findings": [{"finding_id": f.id, "severity": f.severity, "subject": f.subject, "argument": f.argument, "scope": f.scope} for f in findings],
+               "previous_claims": previous, "director_note": note or ""}
+    text = ("Gezielte Überarbeitung der Vorfassung über dieselben Quellen, keine neue Recherche. Prüfe jede Aussage gegen die Passage, die du "
+            "zitierst: der Beleg muss genau in dieser Passage stehen (id, Quelle und Nummer stehen im öffnenden und schliessenden Tag). Korrigiere "
+            "falsche Zuordnungen, Überdehnungen und Zahleninterpretationen; begrenze Aussagen auf das tatsächlich untersuchte Material und nenne "
+            "dessen Art (Selbstdarstellung, Pressebericht, Blog, Arbeitspapier). Beantworte jeden Einwand unter finding_responses: changed (was "
+            "du geändert hast), evidence (welche Passage ihn ausräumt) oder residual_limit (welche Grenze bleibt und warum). Erfinde keine Quelle "
+            "und keine Metadaten, die nicht im Tag stehen.\n" + json.dumps(payload, ensure_ascii=False, indent=1))
+    return {"text": text, "findings": payload["findings"], "previous_claims": previous}
+
+
+def _word_overlap(a: str, b: str) -> float:
+    """A crude marker only (never a check of support): share of the longer words of a that also occur in b. Low across languages."""
+    import re
+
+    wa = {w.lower() for w in re.findall(r"[A-Za-zÄÖÜäöüß0-9%']{5,}", a or "")}
+    wb = {w.lower() for w in re.findall(r"[A-Za-zÄÖÜäöüß0-9%']{5,}", b or "")}
+    return len(wa & wb) / len(wa) if wa else 0.0
+
+
+def _pair_block(db: Session, run_id: str, data_label: str) -> tuple[dict, list[tuple[str, str]]]:
+    """Every claim of the run with the full text of each passage it cites: the unit the reviewer judges. The word-overlap figure is only
+    a marker for attention, explicitly not a judgement of support."""
+    claims = db.execute(select(ClaimVersion).where(ClaimVersion.run_attempt_id == run_id).order_by(ClaimVersion.local_id)).scalars().all()
+    lines, pairs = [], []
+    for c in claims:
+        lines.append(f'<claim id="{c.local_id}" kind="{c.declared_kind}">\n{c.statement}\nGeltung: {c.validity_conditions}')
+        for e in db.execute(select(EvidenceLink).where(EvidenceLink.claim_version_id == c.id)).scalars():
+            if not e.source_passage_id:
+                continue
+            passage = db.get(SourcePassage, e.source_passage_id)
+            overlap = _word_overlap(f"{c.statement} {e.note}", passage.text if passage else "")
+            marker = " marker=\"geringe Wortüberschneidung (Hinweis, kein Befund)\"" if overlap < 0.15 else ""
+            lines.append(f'  <cited passage="{e.source_passage_id}"{marker}>\n  Notiz des Erzeugers: {e.note}\n  Passagentext: '
+                         f'{passage.text if passage else "(nicht gefunden)"}\n  </cited>')
+            pairs.append((c.local_id, e.source_passage_id))
+        lines.append("</claim>")
+    return {"type": "text", "data_label": data_label, "origin": "claim_pairs",
+            "text": "Aussage-Passage-Paare (vom Kontrollkern zusammengestellt; jedes Paar einzeln beurteilen):\n" + "\n".join(lines)}, pairs
 
 
 def _check_not_truncated(response, what: str) -> None:
@@ -962,14 +1076,26 @@ def start_review(db: Session, *, actor: Actor, run_id: str, correlation_id: str)
          "data_label": need.data_labels[0], "origin": "task"},
         {"type": "text", "text": f"Artefakt (sha256 {artifact.sha256}):\n{artifact_text}", "data_label": need.data_labels[0], "origin": "artifact"},
     ]
-    for p in services_claims.project_passages(db, task.project_id):
-        review_blocks.append({"type": "text", "text": f"[passage_id={p['passage_id']} quelle={p['source_id']} v{p['version']}]\n{p['text']}",
-                              "data_label": need.data_labels[0], "origin": "source_passage"})
+    pair_block, pairs = _pair_block(db, attempt.id, need.data_labels[0])
+    review_blocks.append(pair_block)
+    revised_ids = list(artifact.content.get("revised_finding_ids") or [])
+    revised = [f for f in db.execute(select(FindingRecord).where(FindingRecord.id.in_(revised_ids))).scalars()] if revised_ids else []
+    if revised:
+        responses = next((e.payload.get("finding_responses") for e in db.execute(select(AuditEvent).where(
+            AuditEvent.command == "claim.record", AuditEvent.object_id == attempt.id, AuditEvent.policy_decision == "allowed")).scalars()), [])
+        review_blocks.append({"type": "text", "data_label": need.data_labels[0], "origin": "revision", "text": (
+            "Überarbeitung einer Vorfassung. Beurteile unter pair_checks jedes Aussage-Passage-Paar einzeln und unter finding_checks jeden Einwand "
+            "der Vorfassung: resolved nur, wenn die Antwort des Erzeugers ihn durch Änderung oder Beleg tatsächlich ausräumt oder eine Restgrenze "
+            "ausreichend begrenzt und offen benennt.\n" + json.dumps({"findings": [{"finding_id": f.id, "severity": f.severity, "subject": f.subject,
+                                                                                  "argument": f.argument} for f in revised],
+                                                                    "finding_responses": responses or []}, ensure_ascii=False, indent=1))})
+    review_blocks += _passage_blocks(db, task.project_id, services_claims.project_passages(db, task.project_id), need.data_labels[0])
     request = LLMRequest(
         invocation_id=f"{attempt.id}:review:1", deployment_id=reviewer.id, system_rules=system_rules, content_blocks=review_blocks,
-        output_contract=provider_schema("review_report"),
+        output_contract=provider_schema("revision_review" if revised else "review_report"),
         max_output_tokens=_output_bound(db, task, reviewer, pricing, reservation, need.context_tokens_estimate + need.max_output_tokens, need.max_output_tokens),
-        metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "artifact_sha256": artifact.sha256, "task_class": need.task_class},
+        metadata={"routing_decision_id": decision.id, "attempt_id": attempt.id, "artifact_sha256": artifact.sha256, "task_class": need.task_class,
+                  "pairs": pairs, "finding_ids": [f.id for f in revised]},
     )
     try:
         response = _gateway(db, actor.workspace_id).invoke(request, reviewer, decision)
@@ -987,7 +1113,7 @@ def start_review(db: Session, *, actor: Actor, run_id: str, correlation_id: str)
     db.commit()  # call and cost evidence survive a failing content check
     try:
         _check_not_truncated(response, "Prüfbericht")
-        report = ReviewReport.model_validate(json.loads(response.text()))
+        report = (RevisionReview if revised else ReviewReport).model_validate(json.loads(response.text()))
     except Exception as exc:
         reason = exc.message if isinstance(exc, CampusError) else f"Prüfbericht verletzt den Vertrag review_report: {type(exc).__name__}"
         raise CampusError(ErrorCode.PROPOSAL_INVALID, reason, blocked_action="review.start",
@@ -1027,6 +1153,16 @@ def start_review(db: Session, *, actor: Actor, run_id: str, correlation_id: str)
         record(db, actor=actor, command="review.start", object_type="review_report", object_id=row.id, object_version=None,
                correlation_id=correlation_id, project_id=task.project_id, event_type="ReviewInconsistent",
                payload={"inconsistency": inconsistency})
+    resolved_ids = []
+    for check in getattr(report, "finding_checks", []) or []:
+        prior = next((f for f in revised if f.id == check.finding_id), None)
+        if prior is not None and prior.status == "open" and check.resolved:
+            prior.status = "resolved"
+            resolved_ids.append(prior.id)
+            record(db, actor=actor, command="finding.resolve", object_type="finding", object_id=prior.id, object_version=None,
+                   correlation_id=correlation_id, project_id=task.project_id, event_type="FindingResolved",
+                   payload={"review_report_id": row.id, "reviewer_canonical_model_id": row.reviewer_canonical_model_id, "reason": check.reason,
+                            "revision_run_id": attempt.id})
     for finding in findings:
         record(db, actor=actor, command="finding.raise", object_type="finding", object_id=finding.id, object_version=None,
                correlation_id=correlation_id, project_id=task.project_id, event_type="ClaimContested",

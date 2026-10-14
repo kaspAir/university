@@ -162,6 +162,8 @@ class WorkflowBody(BaseModel):
     max_queries: int = Field(default=6, ge=1, le=20)
     max_sources: int = Field(default=8, ge=1, le=30)
     max_rounds: int = Field(default=2, ge=1, le=3)
+    revise: bool = False  # targeted revision of the project's latest reviewed run over the same sources (no new research)
+    revision_note: str = ""
 
 
 async def _temporal_client(request: Request):
@@ -194,12 +196,22 @@ async def start_workflow(task_id: str, body: WorkflowBody, request: Request, act
         raise CampusError(ErrorCode.NOT_FOUND, "Aufgabe nicht gefunden")
     if body.selection_mode not in {"llm", "deterministic_fallback"}:
         raise CampusError(ErrorCode.VALIDATION_ERROR, "selection_mode muss llm oder deterministic_fallback sein")
+    revise_run_id = None
+    if body.revise:
+        from campus_infra.models import ReviewReportRecord, RunAttempt
+
+        latest = db.execute(select(RunAttempt).join(ReviewReportRecord, ReviewReportRecord.run_attempt_id == RunAttempt.id)
+                            .join(Task, Task.id == RunAttempt.task_id).where(Task.project_id == task.project_id, RunAttempt.state == "finished")
+                            .order_by(RunAttempt.started_at.desc())).scalars().first()
+        if latest is None:
+            raise CampusError(ErrorCode.INVALID_TRANSITION, "Kein geprüfter Lauf im Projekt, der überarbeitet werden könnte", blocked_action="workflow.start")
+        revise_run_id = latest.id
     client = await _temporal_client(request)
     workflow_id = f"task-{task_id}"
     correlation = trace_id(request)
     flow = FlowInput(workspace_id=actor.workspace_id, project_id=task.project_id, task_id=task.id, source_urls=body.source_urls,
                      selection_mode=body.selection_mode, correlation_id=correlation, discover=body.discover, max_queries=body.max_queries,
-                     max_sources=body.max_sources, max_rounds=body.max_rounds)
+                     max_sources=body.max_sources, max_rounds=body.max_rounds, revise_run_id=revise_run_id, revision_note=body.revision_note)
     from temporalio.exceptions import WorkflowAlreadyStartedError
 
     try:
@@ -216,7 +228,8 @@ async def start_workflow(task_id: str, body: WorkflowBody, request: Request, act
         row.task_queue = TASK_QUEUE
     record(db, actor=actor, command="workflow.start", object_type="workflow", object_id=workflow_id, object_version=handle.result_run_id,
            correlation_id=correlation, project_id=task.project_id, payload={"source_urls": len(body.source_urls), "selection_mode": body.selection_mode, "discover": body.discover,
-                    "max_queries": body.max_queries, "max_sources": body.max_sources, "max_rounds": body.max_rounds})
+                    "max_queries": body.max_queries, "max_sources": body.max_sources, "max_rounds": body.max_rounds,
+                    "revise_run_id": revise_run_id})
     db.commit()
     return {"workflow_id": workflow_id, "run_id": handle.result_run_id, "task_queue": TASK_QUEUE}
 

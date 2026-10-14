@@ -1,0 +1,43 @@
+{
+  "claims": [
+    {
+      "local_id": "c1",
+      "statement": "Die untersuchte Quelle nennt eine Einsprachefrist von 30 Tagen.",
+      "kind": "observation",
+      "validity_conditions": "Nur für die zitierte Fassung der Quelle.",
+      "evidence": [
+        {
+          "passage_id": "SP-fixture-1",
+          "note": "Abschnitt mit der Fristangabe"
+        }
+      ],
+      "depends_on": []
+    },
+    {
+      "local_id": "c2",
+      "statement": "Die Frist heilt den Gehörsmangel nicht, wenn Entscheidgrundlagen nicht offengelegt sind.",
+      "kind": "hypothesis",
+      "validity_conditions": "Rechtsordnung CH, Stand der zitierten Quelle.",
+      "evidence": [],
+      "depends_on": [
+        "c1"
+      ]
+    }
+  ],
+  "open_questions": [
+    "Gilt die Frist auch für vollautomatisierte Verfügungen?"
+  ],
+  "omissions": [
+    "Kantonale Abweichungen wurden nicht untersucht."
+  ],
+  "finding_responses": [
+    {
+      "finding_id": "F-fixture-1",
+      "disposition": "changed",
+      "explanation": "Belegzuordnung korrigiert.",
+      "claim_local_ids": [
+        "c1"
+      ]
+    }
+  ]
+}

@@ -53,6 +53,12 @@
     {% if step.action == "workflow" and task %}
       <div class="label">Ablauf</div>
       <form data-journey="workflow" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}"{% if workflow %} data-workflow-check="{{ workflow.id }}"{% endif %} onsubmit="return false">
+        {% if step.code == "rework" %}
+        <div class="card" style="margin-bottom:12px"><label style="font-weight:600"><input type="checkbox" name="revise" checked> Gezielte Überarbeitung der letzten geprüften Fassung (ohne neue Recherche)</label>
+          <div style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Dieselbe Bibliothek, die Vorfassung und ihre offenen Einwände als Auftrag; der Erzeuger beantwortet jeden Einwand (geändert, Beleg, Restgrenze), die Gegenprüfung beurteilt jedes Aussage-Passage-Paar und jeden Einwand. Ohne Haken: neuer Ablauf mit Quellenerschliessung.</div>
+          <label class="label">Hinweise der Forschungsleitung für die Überarbeitung (optional)</label>
+          <textarea class="input" name="revision_note" rows="3" placeholder="z. B. Prozentangaben korrigieren, Aussagen auf das untersuchte Material begrenzen"></textarea></div>
+        {% endif %}
         <div data-f="running" class="finding hidden">Ablauf <span class="id">{{ workflow.id if workflow else "" }}</span> läuft noch · Stand: <strong data-f="status">…</strong> <span data-f="stage"></span></div>
         <label class="label" style="margin-top:0">Startquellen: öffentliche URLs (eine je Zeile, optional)</label>
         <textarea class="input" name="source_urls" rows="3" placeholder="https://…"></textarea>

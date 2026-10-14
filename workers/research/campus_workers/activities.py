@@ -54,6 +54,8 @@ class FlowInput:
     max_queries: int = 6
     max_sources: int = 8
     max_rounds: int = 2  # one discovery round plus at most one limited re-search driven by gaps and findings
+    revise_run_id: str | None = None  # targeted revision of this run over the same sources: no discovery, one round
+    revision_note: str = ""
 
 
 @dataclass
@@ -74,6 +76,8 @@ class RunArgs:
     task_id: str
     routing_decision_id: str
     correlation_id: str = "workflow"
+    revision_of_run_id: str | None = None
+    revision_note: str = ""
 
 
 @dataclass
@@ -154,7 +158,8 @@ def run_generation(args: RunArgs) -> dict:
             return {"run_attempt_id": existing.id, "state": existing.state, "end_reason": existing.end_reason, "replayed": True}
         try:
             result = services_research.start_run(db, actor=_producer(args.workspace_id), task_id=args.task_id,
-                                                 routing_decision_id=args.routing_decision_id, correlation_id=args.correlation_id)
+                                                 routing_decision_id=args.routing_decision_id, correlation_id=args.correlation_id,
+                                                 revision_of_run_id=args.revision_of_run_id, revision_note=args.revision_note)
             db.commit()
             return result
         except CampusError as err:

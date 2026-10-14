@@ -48,12 +48,17 @@
   <div class="label">Frage und Mandat</div>
   <div class="question">{{ c.mandate.question_space }}</div>
   <div class="protocol-line">Erkenntnisziel: {{ c.mandate.knowledge_goal }} · Methodenrahmen: {{ c.mandate.method_frame }} · Mandat {{ c.mandate.mandate_id }} v{{ c.mandate.version }} ({{ c.mandate.state }})</div>
-  <div class="label">Aussagen ({{ c.claims|length }})</div>
-  {% if c.claims %}{% for cl in c.claims %}
+  {% macro claim_card(cl) %}
   <div class="claim s-{{ cl.epistemic_status }}"><div class="cid">{{ cl.local_id }} · {{ cl.declared_kind }}{% if cl.declared_kind != cl.stored_kind %} → gespeichert als {{ cl.stored_kind }}{% endif %} · <span class="c-{{ cl.epistemic_status }}">{{ cl.epistemic_status|status_label }}</span></div>
     <div class="ctext">{{ cl.statement }}</div>
     <div class="cfoot">Geltung: {{ cl.validity_conditions or "–" }} · {{ cl.evidence|length }} Beleg(e){% for e in cl.evidence %} [{{ e.kind }} {{ e.source_passage_id or e.experiment_run_id or e.run_attempt_id }}]{% endfor %}{% if cl.flags %} · <span class="tag tag-accent">{{ cl.flags|join(", ") }}</span>{% endif %} · Erzeuger {{ cl.producer_canonical_model_id }}</div></div>
-  {% endfor %}{% else %}<div class="empty">Keine Aussagen.</div>{% endif %}
+  {% endmacro %}
+  {% set current = c.claims|selectattr("run_attempt_id", "equalto", c.current_run_id)|list if c.current_run_id is defined and c.current_run_id else c.claims %}
+  {% set earlier = c.claims|rejectattr("run_attempt_id", "equalto", c.current_run_id)|list if c.current_run_id is defined and c.current_run_id else [] %}
+  <div class="label">Aussagen des aktuellen Laufs ({{ current|length }})</div>
+  {% if current %}{% for cl in current %}{{ claim_card(cl) }}{% endfor %}{% else %}<div class="empty">Keine Aussagen.</div>{% endif %}
+  {% if earlier %}<details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px">Aussagen früherer Läufe ({{ earlier|length }}), zur Nachvollziehbarkeit</summary>
+  {% for cl in earlier %}{{ claim_card(cl) }}{% endfor %}</details>{% endif %}
   {% if c.source_map %}
   <div class="label">Quellenkarte · {{ c.source_map.rounds }} Runde(n) · {{ c.source_map.queries }} Suchanfragen · {{ c.source_map.fetched }} abgerufene Quellen</div>
   {% for s in c.source_map.sub_questions %}<div class="finding"><span class="id">{{ s.id }}</span> · {{ s.question }} · {% if s.sources %}{% for src in s.sources %}<span class="id">{{ src.source_id }}</span> {% endfor %}{% else %}<span class="tag tag-accent">keine abgerufene Quelle</span>{% endif %}</div>{% endfor %}
@@ -64,9 +69,24 @@
   {% if c.sources %}<div class="tablewrap"><table class="table"><thead><tr><th>ID</th><th>Quelle</th><th>Status</th></tr></thead><tbody>
     {% for s in c.sources %}<tr><td class="id">{{ s.source_id }}</td><td>{{ s.url or s.title or "–" }}</td><td><span class="tag {% if s.status != 'active' %}tag-accent{% else %}tag-neutral{% endif %}">{{ s.status }}</span></td></tr>{% endfor %}
   </tbody></table></div>{% else %}<div class="empty">Keine Quellen; Aussagen ohne Beleg bleiben Hypothesen (T04).</div>{% endif %}
+  {% set revs = c.runs|selectattr("finding_responses")|list %}
+  {% if revs %}
+  <div class="label">Überarbeitung: Antworten auf die Einwände der Vorfassung</div>
+  {% for r in revs %}{% for fr in r.finding_responses %}{% set f = (c.findings|selectattr("id", "equalto", fr.finding_id)|first) %}
+  <div class="finding"><span class="id">{{ fr.finding_id }}</span>{% if f %} · {{ f.severity }} · {{ f.subject }}{% endif %} · <span class="tag tag-neutral">{{ {"changed": "geändert", "evidence": "Nachweis", "residual_limit": "Restgrenze"}[fr.disposition] }}</span>
+    {% if f %} · Stand <span class="tag {% if f.status == 'resolved' %}tag-outline{% else %}tag-accent{% endif %}">{{ "erledigt (Gegenprüfung)" if f.status == "resolved" else "offen" }}</span>{% endif %}
+    <div style="font-size:12px;margin-top:4px">{{ fr.explanation }}{% if fr.claim_local_ids %} · Aussagen {{ fr.claim_local_ids|join(", ") }}{% endif %}</div></div>
+  {% endfor %}{% endfor %}
+  {% endif %}
+  {% for v in c.reviews if v.pair_checks %}
+  <div class="label">Paarprüfung {{ v.review_report_id }} ({{ v.reviewer_canonical_model_id }})</div>
+  <div class="tablewrap"><table class="table"><thead><tr><th>Aussage</th><th>Passage</th><th>Urteil</th><th>Begründung</th></tr></thead><tbody>
+    {% for pc in v.pair_checks %}<tr><td class="id">{{ pc.claim_local_id }}</td><td class="id">{{ pc.passage_id }}</td><td><span class="tag {% if pc.support == 'supports' %}tag-outline{% else %}tag-accent{% endif %}">{{ {"supports": "trägt", "partial": "teilweise", "does_not_support": "trägt nicht", "cannot_assess": "nicht prüfbar"}[pc.support] }}</span></td><td style="font-size:12px">{{ pc.reason }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endfor %}
   <div class="label">Gegenprüfungen und Einwände</div>
   {% if c.reviews %}{% for v in c.reviews %}<div class="finding">Prüfbericht <span class="id">{{ v.review_report_id }}</span> · Prüfer {{ v.reviewer_canonical_model_id }} · Erzeuger {{ v.producer_canonical_model_id }} · <span class="tag tag-neutral">{{ v.verdict }}</span></div>{% endfor %}{% else %}<div class="empty">Keine Gegenprüfung: Prüfstatus offen.</div>{% endif %}
-  {% for f in c.findings %}<div class="finding"><span class="id">{{ f.id }}</span> · <strong>{{ f.subject }}</strong> · Tragweite {{ f.severity }} · <span class="tag {% if f.status == 'open' %}tag-accent{% else %}tag-neutral{% endif %}">{{ f.status }}</span></div>{% endfor %}
+  {% for f in c.findings %}<div class="finding"><span class="id">{{ f.id }}</span> · <strong>{{ f.subject }}</strong> · Tragweite {{ f.severity }} · <span class="tag {% if f.status == 'open' %}tag-accent{% else %}tag-neutral{% endif %}">{{ f.status }}</span>{% if f.argument %}<div style="font-size:12px;margin-top:4px">{{ f.argument }}</div>{% endif %}</div>{% endfor %}
   {% set qs = [] %}{% set om = [] %}{% for r in c.runs %}{% for q in r.open_questions or [] %}{% if qs.append(q) %}{% endif %}{% endfor %}{% for o in r.omissions or [] %}{% if om.append(o) %}{% endif %}{% endfor %}{% endfor %}
   <div class="label">Offene Untersuchungsfragen ({{ qs|length }})</div>
   {% if qs %}<ul style="margin:4px 0 0;padding-left:18px">{% for q in qs %}<li style="font-size:13px;margin-bottom:4px">{{ q }}</li>{% endfor %}</ul>{% else %}<div class="empty">Keine offenen Fragen deklariert.</div>{% endif %}

@@ -101,7 +101,8 @@ def record_claim_set(db: Session, *, actor: Actor, task: Task, attempt: RunAttem
     record(db, actor=actor, command="claim.record", object_type="run_attempt", object_id=attempt.id, object_version=None,
            correlation_id=correlation_id, project_id=task.project_id, event_type="ClaimsRecorded",
            payload={"claim_version_ids": [c.id for c in created.values()], "open_questions": claim_set.open_questions,
-                    "omissions": claim_set.omissions})
+                    "omissions": claim_set.omissions,
+                    "finding_responses": [r.model_dump() for r in getattr(claim_set, "finding_responses", [])]})
     return list(created.values())
 
 

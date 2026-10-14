@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/revision_review.schema.json",
+  "title": "revision_review",
+  "description": "Repository addition (14.10.2026): the distinct-model review of a revision. Same as review_report, plus a judgement per claim-passage pair handed over by the core and per finding of the previous version (resolved or not, with reason).",
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "enum": [
+        "no_objection",
+        "objections",
+        "cannot_assess"
+      ]
+    },
+    "checked_aspects": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "argument": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "minor",
+              "major",
+              "blocking"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "subject",
+          "argument",
+          "severity",
+          "scope"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pair_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim_local_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "passage_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "support": {
+            "enum": [
+              "supports",
+              "partial",
+              "does_not_support",
+              "cannot_assess"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "claim_local_id",
+          "passage_id",
+          "support",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "finding_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "finding_id",
+          "resolved",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "verdict",
+    "checked_aspects",
+    "findings",
+    "uncertainties",
+    "pair_checks",
+    "finding_checks"
+  ],
+  "additionalProperties": false
+}

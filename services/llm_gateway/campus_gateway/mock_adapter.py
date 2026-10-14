@@ -58,6 +58,21 @@ class MockAdapter:
     @staticmethod
     def _structured(request: LLMRequest) -> dict:
         props = set((request.output_contract or {}).get("properties", {}))
+        if "finding_responses" in props:  # claim_revision: one evidenced observation per passage, one response per finding
+            passage_ids = list(request.metadata.get("passage_ids") or [])
+            claims = [{"local_id": f"r{i + 1}", "statement": f"Überarbeitete Beobachtung aus Passage {pid}.", "kind": "observation",
+                       "validity_conditions": "Nur für die zitierte Quellenfassung.", "evidence": [{"passage_id": pid, "experiment_run_id": None,
+                                                                                                  "note": "Mock"}], "depends_on": []}
+                      for i, pid in enumerate(passage_ids[:2])] or [{"local_id": "r1", "statement": "Mock-Hypothese.", "kind": "hypothesis",
+                                                                       "validity_conditions": "keine", "evidence": [], "depends_on": []}]
+            return {"claims": claims, "open_questions": ["Mock: offene Frage"], "omissions": ["Mock: nichts Weiteres"],
+                    "finding_responses": [{"finding_id": f, "disposition": "changed", "explanation": "Mock: korrigiert", "claim_local_ids": ["r1"]}
+                                          for f in request.metadata.get("finding_ids") or []]}
+        if "finding_checks" in props:  # revision_review: every handed pair supports, every finding resolved
+            return {"verdict": "no_objection", "checked_aspects": ["Mock-Paarprüfung"], "findings": [], "uncertainties": ["Synthetisch."],
+                    "pair_checks": [{"claim_local_id": c, "passage_id": pid, "support": "supports", "reason": "Mock"}
+                                    for c, pid in request.metadata.get("pairs") or []],
+                    "finding_checks": [{"finding_id": f, "resolved": True, "reason": "Mock: erledigt"} for f in request.metadata.get("finding_ids") or []]}
         if "selected_deployment_id" in props:  # route_proposal
             candidates = request.metadata.get("candidates") or []
             if not candidates:

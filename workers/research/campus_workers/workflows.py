@@ -78,7 +78,7 @@ class ResearchTaskWorkflow:
                 self._result["routing_decision_id"] = decision_id
                 if stopped := self._check_stop():
                     return stopped
-                if flow.discover:
+                if flow.discover and not flow.revise_run_id:
                     # the campus finds its own sources under the authorized route; round 2 works from the gaps the previous round left
                     self._stage = "discovering_sources"
                     disc = await workflow.execute_activity(
@@ -96,7 +96,8 @@ class ResearchTaskWorkflow:
                     if stopped := self._check_stop():
                         return stopped
                 self._stage = "generating"
-                run = await workflow.execute_activity(run_generation, RunArgs(flow.workspace_id, flow.task_id, decision_id, flow.correlation_id),
+                run = await workflow.execute_activity(run_generation, RunArgs(flow.workspace_id, flow.task_id, decision_id, flow.correlation_id,
+                                                                              flow.revise_run_id, flow.revision_note),
                                                       start_to_close_timeout=MODEL_STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
                 attempts.append({"routing_decision_id": decision_id, "state": run.get("state"), "end_reason": run.get("end_reason")})
                 self._result["run"], self._result["attempts"] = run, attempts
@@ -119,7 +120,7 @@ class ResearchTaskWorkflow:
             last = discoveries[-1] if discoveries else {}
             gaps = [*run.get("open_questions", []), *[f.get("subject", "") for f in review.get("findings", [])], *last.get("follow_up_queries", [])]
             gaps = [g for g in gaps if g]
-            if not (flow.discover and rounds < flow.max_rounds and gaps and discoveries and not last.get("skipped")):
+            if flow.revise_run_id or not (flow.discover and rounds < flow.max_rounds and gaps and discoveries and not last.get("skipped")):
                 break
         self._stage = "building_dossier"
         self._result["dossier"] = await workflow.execute_activity(build_dossier, DossierArgs(flow.workspace_id, flow.project_id, flow.correlation_id),

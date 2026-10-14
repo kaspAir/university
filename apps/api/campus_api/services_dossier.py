@@ -69,14 +69,17 @@ def dossier_document(db: Session, *, actor: Actor, project_id: str) -> dict:
         "sources": services_sources.project_sources(db, actor=actor, project_id=project.id),
         "runs": [{"run_attempt_id": r.id, "task_id": r.task_id, "attempt_no": r.attempt_no, "state": r.state, "end_reason": r.end_reason,
                   "routing_decision_id": r.routing_decision_id, "agent_profile_version_id": r.agent_profile_version_id,
-                  "open_questions": list(notes.get(r.id, {}).get("open_questions") or []), "omissions": list(notes.get(r.id, {}).get("omissions") or [])}
+                  "open_questions": list(notes.get(r.id, {}).get("open_questions") or []), "omissions": list(notes.get(r.id, {}).get("omissions") or []),
+                  "finding_responses": list(notes.get(r.id, {}).get("finding_responses") or [])}
                  for r in runs],
         "claims": claims["claims"],
         "dependency_edges": claims["edges"],
         "reviews": [{"review_report_id": r.id, "run_attempt_id": r.run_attempt_id, "verdict": r.verdict, "artifact_sha256": r.artifact_sha256,
-                     "reviewer_canonical_model_id": r.reviewer_canonical_model_id, "producer_canonical_model_id": r.producer_canonical_model_id}
+                     "reviewer_canonical_model_id": r.reviewer_canonical_model_id, "producer_canonical_model_id": r.producer_canonical_model_id,
+                     "pair_checks": list((r.document or {}).get("pair_checks") or []), "finding_checks": list((r.document or {}).get("finding_checks") or [])}
                     for r in reviews],
-        "findings": [{"id": f.id, "subject": f.subject, "severity": f.severity, "status": f.status, "scope": f.scope} for f in findings],
+        "findings": [{"id": f.id, "subject": f.subject, "severity": f.severity, "status": f.status, "scope": f.scope, "argument": f.argument}
+                     for f in findings],
         "reassessments": [{"id": r.id, "trigger": r.trigger, "trigger_object_id": r.trigger_object_id, "due_at": r.due_at, "state": r.state,
                            "affected_claim_version_ids": r.affected_claim_version_ids} for r in reassessments],
         "status_axes": {
@@ -86,6 +89,7 @@ def dossier_document(db: Session, *, actor: Actor, project_id: str) -> dict:
             "blocking": {"open_findings": [f.id for f in open_findings], "open_reassessments": [r.id for r in reassessments if r.state == "open"]},
         },
         "source_map": _source_map_summary(db, project.id),
+        "current_run_id": next((r.id for r in reversed(runs) if r.state == "finished"), None),
         "declarations": {"ai_involvement": "Erzeugung und Erstprüfung durch Sprachmodelle; Kontrollkern deterministisch; keine externe Begutachtung",
                          "synthetic_content": any(bool(a.synthetic) for a in db.execute(select(ArtifactVersion).where(
                              ArtifactVersion.task_id.in_([t.id for t in tasks]))).scalars()) if tasks else False},

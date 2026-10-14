@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/claim_revision.schema.json",
+  "title": "claim_revision",
+  "description": "Repository addition (14.10.2026): a targeted revision of a claim set over the same sources. Same claims as claim_set, plus one response per finding of the previous version: what changed, what evidence answers it, or which limit remains and why.",
+  "type": "object",
+  "properties": {
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "local_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "observation",
+              "computation",
+              "derivation",
+              "hypothesis",
+              "legal_assessment",
+              "normative_proposal"
+            ]
+          },
+          "validity_conditions": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "passage_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "experiment_run_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "note"
+              ],
+              "oneOf": [
+                {
+                  "required": [
+                    "passage_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "experiment_run_id"
+                  ]
+                }
+              ],
+              "additionalProperties": false
+            }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "local_id",
+          "statement",
+          "kind",
+          "validity_conditions",
+          "evidence",
+          "depends_on"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "omissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "finding_responses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "disposition": {
+            "enum": [
+              "changed",
+              "evidence",
+              "residual_limit"
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_local_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "finding_id",
+          "disposition",
+          "explanation",
+          "claim_local_ids"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "claims",
+    "open_questions",
+    "omissions",
+    "finding_responses"
+  ],
+  "additionalProperties": false
+}

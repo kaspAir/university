@@ -275,6 +275,42 @@ class SourceSelection(_Strict):
     follow_up_queries: list[str]
 
 
+
+# ---------------------------------------------------------------- targeted revision (repository addition, 14.10.2026)
+
+
+class FindingResponse(_Strict):
+    finding_id: str = Field(min_length=1)
+    disposition: Literal["changed", "evidence", "residual_limit"]
+    explanation: str = Field(min_length=1)
+    claim_local_ids: list[str]
+
+
+class ClaimRevision(ClaimSet):
+    """A claim set that revises an earlier version over the same sources, answering each finding of that version."""
+
+    finding_responses: list[FindingResponse]
+
+
+class PairCheck(_Strict):
+    claim_local_id: str = Field(min_length=1)
+    passage_id: str = Field(min_length=1)
+    support: Literal["supports", "partial", "does_not_support", "cannot_assess"]
+    reason: str = Field(min_length=1)
+
+
+class FindingCheck(_Strict):
+    finding_id: str = Field(min_length=1)
+    resolved: bool
+    reason: str = Field(min_length=1)
+
+
+class RevisionReview(ReviewReport):
+    """The distinct-model review of a revision: per claim-passage pair and per finding of the previous version."""
+
+    pair_checks: list[PairCheck]
+    finding_checks: list[FindingCheck]
+
 MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "model_catalog": ModelCatalog,
     "task_need": TaskNeed,
@@ -287,4 +323,6 @@ MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "evaluation_verdict": EvaluationVerdict,
     "search_plan": SearchPlan,
     "source_selection": SourceSelection,
+    "claim_revision": ClaimRevision,
+    "revision_review": RevisionReview,
 }
