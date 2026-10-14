@@ -192,7 +192,7 @@ def fetch_source(db: Session, *, actor: Actor, project_id: str, url: str, task_i
     try:
         result = fetcher.fetch(url, labels)
     except CampusError as err:
-        record(db, actor=actor, command="source.fetch", object_type="source", object_id=url[:200], object_version=None,
+        record(db, actor=actor, command="source.fetch", object_type="source", object_id=url[:80], object_version=None,  # column holds 80
                correlation_id=correlation_id, policy_decision=f"blocked:{err.code.value}", project_id=project.id,
                payload={"message": err.message})
         db.commit()

@@ -168,7 +168,7 @@ def discover_sources(db: Session, *, actor: Actor, task_id: str, routing_decisio
             kept += 1
         query_log.append({"query": q.query, "kind": q.kind, "sub_question_ids": list(q.sub_question_ids), "status": status, "hits": kept})
         record(db, actor=actor, command="source.search", object_type="task", object_id=task.id, object_version=str(round_no),
-               correlation_id=correlation_id, project_id=task.project_id, policy_decision="allowed" if status == "ok" else f"blocked:{status[:40]}",
+               correlation_id=correlation_id, project_id=task.project_id, policy_decision="allowed" if status == "ok" else f"blocked:{status[:30]}",  # column holds 40
                payload={"query": q.query, "kind": q.kind, "provider": search.name, "hits": kept, "urls": [h["url"] for h in hits[-kept:]] if kept else []})
     search_cost = budget_service.settle(db, reservation_id=search_reservation.id,
                                         actual=estimate_cost(search_pricing, 0, executed) if executed else estimate_cost(search_pricing, 0, 0))
@@ -210,6 +210,9 @@ def discover_sources(db: Session, *, actor: Actor, task_id: str, routing_decisio
         except CampusError as err:
             db.rollback()
             gaps_out.append({"kind": "fetch_failed", "url": s["url"], "code": err.code.value, "message": err.message, "sub_question_ids": s["sub_question_ids"]})
+        except Exception as exc:  # noqa: BLE001 - one broken page (or a storage error about it) is a gap; it never costs the round and its map
+            db.rollback()
+            gaps_out.append({"kind": "fetch_error", "url": s["url"], "code": type(exc).__name__, "message": str(exc)[:300], "sub_question_ids": s["sub_question_ids"]})
     for sq in uncovered:
         gaps_out.append({"kind": "uncovered_sub_question", "sub_question_id": sq})
     for text in plan.not_searchable:

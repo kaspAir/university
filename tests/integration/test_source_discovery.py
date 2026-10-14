@@ -29,7 +29,9 @@ class FakeSearch:
         self.queries.append(query)
         if self.fail_query and self.fail_query in query:
             raise SearchUnavailable("HTTP 429")
-        return [SearchHit("Testurteil", "https://public.example/urteil", "Einsprachefrist dreissig Tage"),
+        long_url = "https://public.example/" + "sehr-lange-adresse-" * 6 + "/fehlt"  # longer than the audit's 80-character object id
+        return [SearchHit("Fehlende Seite", long_url, "liefert 404"),
+                SearchHit("Testurteil", "https://public.example/urteil", "Einsprachefrist dreissig Tage"),
                 SearchHit("Plain", "https://public.example/plain", "zwei Passagen"),
                 SearchHit("PDF", "https://public.example/pdf", "nicht extrahierbar"),
                 SearchHit("Unsicher", "http://public.example/http-only", "kein https")]
@@ -60,15 +62,16 @@ def test_discovery_plans_searches_selects_fetches_and_maps(client, session_facto
                                                   round_no=1, gaps=[], max_queries=3, max_sources=2, correlation_id="t", search=search,
                                                   fetcher=make_fetcher(), search_pricing_ref="search-price-1")
     assert result["queries"] == 2 and len(search.queries) == 2, "the mock plan yields one evidence and one counter-evidence query, capped by max_queries"
-    assert result["hits"] == 3, "http-only hits are dropped, duplicates across queries merged"
-    assert result["selected"] == 2 and result["fetched"] == 2, "max_sources caps the choice; both chosen pages were fetched"
+    assert result["hits"] == 4, "http-only hits are dropped, duplicates across queries merged"
+    assert result["selected"] == 2 and result["fetched"] == 1, "max_sources caps the choice; the missing page is a gap, not a crash"
     with session_factory() as db:
         art = db.get(ArtifactVersion, result["artifact_version_id"])
         assert art.kind == "source_map" and art.version == 1 and art.synthetic is True and art.sha256 == result["sha256"]
         content = art.content
         assert [q["status"] for q in content["queries"]] == ["ok", "ok"] and content["search_provider"] == "fake"
-        assert {f["url"] for f in content["fetched"]} == {"https://public.example/urteil", "https://public.example/plain"}
+        assert {f["url"] for f in content["fetched"]} == {"https://public.example/urteil"}
         assert any(g["kind"] == "not_searchable" for g in content["gaps"])
+        assert any(g["kind"] == "fetch_failed" and g["code"] == "FETCH_FAILED" and len(g["url"]) > 80 for g in content["gaps"]), "long failing url audited"
         urls = {s.normalized_url for s in db.execute(select(Source).where(Source.project_id == state["project"]["project_id"])).scalars()}
         assert "https://public.example/urteil" in urls and "https://public.example/pdf" not in urls, "a hit is not a source until fetched"
         purposes = sorted(p for (p,) in db.execute(select(Reservation.purpose).where(Reservation.task_id == task["task_id"])).all())
@@ -81,11 +84,11 @@ def test_discovery_plans_searches_selects_fetches_and_maps(client, session_facto
         assert len(searches) == 2 and all(s.payload["provider"] == "fake" for s in searches)
     # the generation now sees the fetched passages; the dossier carries the source map with sub-questions and their sources
     run = api.post("/runs", {"task_id": task["task_id"], "routing_decision_id": decision_id}).json()
-    assert run["passages_given"] >= 3 and run["state"] == "finished"
+    assert run["passages_given"] >= 2 and run["state"] == "finished"
     dossier = api.get(f"/projects/{state['project']['project_id']}/dossier").json()
-    assert dossier["source_map"]["rounds"] == 1 and dossier["source_map"]["fetched"] == 2
+    assert dossier["source_map"]["rounds"] == 1 and dossier["source_map"]["fetched"] == 1
     q1 = next(s for s in dossier["source_map"]["sub_questions"] if s["id"] == "q1")
-    assert len(q1["sources"]) == 2 and dossier["source_map"]["unanswerable"] == []
+    assert len(q1["sources"]) == 1 and dossier["source_map"]["unanswerable"] == []
     page = client.get(f"/campus/artefakte/{result['artifact_version_id']}").text
     assert "Quellenkarte" in page and "public.example/urteil" in page and "not_searchable" in page
     assert "Quellenkarte des Campus" in client.get(f"/campus/dossiers/{state['project']['project_id']}?tab=quellen").text
