@@ -54,8 +54,13 @@
       <div class="label">Ablauf</div>
       <form data-journey="workflow" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}"{% if workflow %} data-workflow-check="{{ workflow.id }}"{% endif %} onsubmit="return false">
         <div data-f="running" class="finding hidden">Ablauf <span class="id">{{ workflow.id if workflow else "" }}</span> läuft noch · Stand: <strong data-f="status">…</strong> <span data-f="stage"></span></div>
-        <label class="label" style="margin-top:0">Öffentliche Quellen (eine URL je Zeile, optional)</label>
+        <label class="label" style="margin-top:0">Startquellen: öffentliche URLs (eine je Zeile, optional)</label>
         <textarea class="input" name="source_urls" rows="3" placeholder="https://…"></textarea>
+        <div style="font-size:12px;margin-top:10px">
+          {% if search_provider %}<label><input type="checkbox" name="discover" checked> Der Campus erschliesst Quellen selbst (Suchdienst {{ search_provider }}): Teilfragen und Suchanfragen aus dem Mandat, begründete Trefferauswahl, Abruf über den Internetdienst, eine begrenzte Nachrecherche aus Lücken und Einwänden. Eingegebene URLs sind optionale Startquellen.</label>
+          <div style="margin-top:6px">Suchanfragen je Runde <input class="input" name="max_queries" value="6" style="width:60px;display:inline-block"> · Quellen je Runde <input class="input" name="max_sources" value="8" style="width:60px;display:inline-block"> · Runden <input class="input" name="max_rounds" value="2" style="width:60px;display:inline-block"> <span style="color:var(--color-neutral-700)">(Obergrenzen; Such- und Modellkosten laufen gegen das Aufgabenbudget)</span></div>
+          {% else %}<span class="tag tag-accent">kein Suchdienst angebunden</span> <input type="checkbox" name="discover" disabled> Der Campus kann Quellen erst selbst erschliessen, wenn ein Suchdienst eingerichtet ist (CAMPUS_SEARCH_PROVIDER, Schlüssel, Preisfassung); bis dahin nur eingegebene URLs.{% endif %}
+        </div>
         {% if known_sources %}<div style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Bereits gespeicherte öffentliche Quellen dieses Workspace (werden für dieses Projekt neu abgerufen und fassungsgenau gespeichert):
           <ul style="margin:4px 0 0;padding-left:16px">{% for u in known_sources %}<li><code style="font-size:11px">{{ u }}</code></li>{% endfor %}</ul></div>{% endif %}
         <div style="font-size:12px;color:var(--color-neutral-700);margin-top:8px">Quellen → Route (Selector mit Kernprüfung) → Erzeugung → Gegenprüfung durch ein anderes Modell → Dossier. Interne und private Ziele werden blockiert; eine blockierte Quelle ist eine Zugangslücke, kein Abbruch.</div>
@@ -76,8 +81,13 @@
       <div class="label">Ablauf</div>
       <div class="finding" data-workflow-id="{{ workflow.id }}">Ablauf <span class="id">{{ workflow.id }}</span> · Stand: <strong data-f="status">wird gelesen …</strong> <span data-f="stage"></span></div>
       {% if task and project %}<form data-journey="workflow" data-restart class="hidden" data-task="{{ task.task_id }}" data-project="{{ project.project_id }}" onsubmit="return false" style="margin-top:12px">
-        <label class="label" style="margin-top:0">Neuer Ablauf: öffentliche Quellen (eine URL je Zeile, optional)</label>
+        <label class="label" style="margin-top:0">Neuer Ablauf: Startquellen (eine URL je Zeile, optional)</label>
         <textarea class="input" name="source_urls" rows="3" placeholder="https://…"></textarea>
+        <div style="font-size:12px;margin-top:10px">
+          {% if search_provider %}<label><input type="checkbox" name="discover" checked> Der Campus erschliesst Quellen selbst (Suchdienst {{ search_provider }}): Teilfragen und Suchanfragen aus dem Mandat, begründete Trefferauswahl, Abruf über den Internetdienst, eine begrenzte Nachrecherche aus Lücken und Einwänden. Eingegebene URLs sind optionale Startquellen.</label>
+          <div style="margin-top:6px">Suchanfragen je Runde <input class="input" name="max_queries" value="6" style="width:60px;display:inline-block"> · Quellen je Runde <input class="input" name="max_sources" value="8" style="width:60px;display:inline-block"> · Runden <input class="input" name="max_rounds" value="2" style="width:60px;display:inline-block"> <span style="color:var(--color-neutral-700)">(Obergrenzen; Such- und Modellkosten laufen gegen das Aufgabenbudget)</span></div>
+          {% else %}<span class="tag tag-accent">kein Suchdienst angebunden</span> <input type="checkbox" name="discover" disabled> Der Campus kann Quellen erst selbst erschliessen, wenn ein Suchdienst eingerichtet ist (CAMPUS_SEARCH_PROVIDER, Schlüssel, Preisfassung); bis dahin nur eingegebene URLs.{% endif %}
+        </div>
         <div data-f="err" class="error-block hidden"></div>
         <div style="margin-top:14px"><button class="btn btn-primary" data-submit>Ablauf erneut starten</button></div>
       </form>{% endif %}

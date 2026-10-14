@@ -84,6 +84,23 @@ class MockAdapter:
                 claims.append({"local_id": f"x{i + 1}", "statement": f"Synthetischer Messwert aus Experiment {xid}.", "kind": "computation",
                                "validity_conditions": "Nur für diesen Lauf.", "evidence": [{"experiment_run_id": xid, "note": "Mock"}], "depends_on": []})
             return {"claims": claims, "open_questions": ["Mock: offene Frage"], "omissions": ["Mock: nichts Weiteres untersucht"]}
+        if "sub_questions" in props:  # search_plan: one sub-question per hint the core passed, one query each, plus a counter-evidence query
+            hints = list(request.metadata.get("gap_hints") or []) or ["Mock-Teilfrage aus dem Mandat"]
+            subs = [{"id": f"q{i + 1}", "question": h, "basis": "gap" if request.metadata.get("round_no", 1) > 1 else "question_space"}
+                    for i, h in enumerate(hints[:3])]
+            queries = [{"query": f"mock {s['question'][:40]}", "sub_question_ids": [s["id"]], "language": "de", "kind": "evidence",
+                        "rationale": "Mock-Suchanfrage"} for s in subs]
+            queries.append({"query": "mock gegenbelege", "sub_question_ids": [subs[0]["id"]], "language": "de", "kind": "counter_evidence",
+                            "rationale": "Mock: Gegenbelege"})
+            return {"sub_questions": subs, "queries": queries, "not_searchable": ["Mock: interne Unterlagen sind nicht öffentlich"]}
+        if "uncovered_sub_question_ids" in props:  # source_selection: the first hits, mapped to the first sub-question
+            hit_ids = list(request.metadata.get("hit_ids") or [])
+            subs = list(request.metadata.get("sub_question_ids") or ["q1"])
+            limit = int(request.metadata.get("max_sources") or 2)
+            return {"selected": [{"hit_id": h, "sub_question_ids": [subs[0]], "reason": "Mock: erster Treffer", "expected_kind": "other"}
+                                 for h in hit_ids[:limit]],
+                    "rejected_examples": [{"hit_id": h, "reason": "Mock: nicht gewählt"} for h in hit_ids[limit:limit + 1]],
+                    "uncovered_sub_question_ids": subs[1:], "follow_up_queries": ["mock nachrecherche"] if subs[1:] else []}
         if "false_alarm_risk" in props:  # evaluation_verdict: the case fails when its input carries the marker FAIL
             text_in = " ".join(str(b.get("text", "")) for b in request.content_blocks)
             failed = "FAIL" in text_in

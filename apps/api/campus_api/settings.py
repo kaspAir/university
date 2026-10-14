@@ -20,6 +20,8 @@ class Settings:
     sandbox_runner: str = "none"  # none | mock | docker (S4)
     sandbox_image: str | None = None  # digest-pinned image for the docker runner
     sandbox_workroot: Path = Path("var/sandbox")
+    search_provider: str | None = None  # none | brave: the search service the core may call for source discovery (key in the process env)
+    search_pricing_ref: str | None = None  # registered price per million search requests; without it discovery refuses (A14)
 
     @staticmethod
     def from_env() -> Settings:
@@ -52,6 +54,8 @@ class Settings:
             sandbox_runner=runner,
             sandbox_image=image,
             sandbox_workroot=Path(os.environ.get("CAMPUS_SANDBOX_WORKROOT", "var/sandbox")),
+            search_provider=(os.environ.get("CAMPUS_SEARCH_PROVIDER") or "none").lower() if (os.environ.get("CAMPUS_SEARCH_PROVIDER") or "none").lower() != "none" else None,
+            search_pricing_ref=os.environ.get("CAMPUS_SEARCH_PRICING_REF") or None,
         )
 
 

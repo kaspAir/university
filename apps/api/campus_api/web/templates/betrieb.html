@@ -9,6 +9,7 @@
   <tr><td style="font-weight:600">Leistungsebene</td><td>{{ capability_level }}{% if mock %} <span class="tag tag-accent">Mockbetrieb</span>{% endif %}</td></tr>
   <tr><td style="font-weight:600">Modellaufrufe</td><td>{% if live %}<span class="tag tag-outline">echt · {{ live_adapters|join(", ") }}</span> Aufrufe an echte Anbieter kosten Geld und stehen im Aufrufjournal unten.{% else %}<span class="tag tag-accent">nur Mock</span> Kein echter Anbieter im aktiven Katalog; alle Ergebnisse sind synthetisch.{% endif %}</td></tr>
   <tr><td style="font-weight:600">Freigegebene Adapter (Prozess)</td><td>{{ approved_adapters|join(", ") }} <span style="font-size:12px;color:var(--color-neutral-700)">· CAMPUS_APPROVED_ADAPTERS; ein Deployment mit nicht freigegebenem Adapter wird nicht aufgerufen und nicht simuliert (A01)</span></td></tr>
+  <tr><td style="font-weight:600">Suchdienst</td><td>{% if search_provider %}<span class="tag tag-outline">{{ search_provider }}</span> Quellenerschliessung durch den Campus aktiv; jede Suchanfrage wird auditiert und zum registrierten Preis abgerechnet.{% else %}<span class="tag tag-accent">keiner</span> Nur eingegebene URLs; Einrichtung siehe docs/BETRIEB_SERVER.md.{% endif %}</td></tr>
   <tr><td style="font-weight:600">Sandboxpfad</td><td>{{ sandbox.runner_kind or "keiner" }} · {% if sandbox.accepted %}abgenommen{% else %}nicht abgenommen{% endif %} · {{ sandbox.note }}</td></tr>
   <tr><td style="font-weight:600">Aufrufe mit unbekanntem Ausgang</td><td>{{ unknown }}</td></tr>
 </tbody></table></div>

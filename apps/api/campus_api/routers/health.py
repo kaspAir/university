@@ -14,7 +14,8 @@ from ..settings import get_settings
 router = APIRouter(tags=["operations"])
 
 
-def pilot_limitations(capability_level: str, sandbox_runner: str, temporal_mode: str, adapters: list[str]) -> list[str]:
+def pilot_limitations(capability_level: str, sandbox_runner: str, temporal_mode: str, adapters: list[str],
+                      search_provider: str | None = None) -> list[str]:
     """The limits that stay in force, derived from the running configuration (never from a claim). Shown in /health and in the UI."""
     real = [a for a in adapters if a != "mock"]
     limitations = []
@@ -30,6 +31,8 @@ def pilot_limitations(capability_level: str, sandbox_runner: str, temporal_mode:
             limitations.append("Leistungsebene development_mock: Modellaufrufe über den Mock-Adapter, Ergebnisse synthetisch")
     if "mock" in adapters and real:
         limitations.append("Mock-Adapter bleibt freigegeben: Ergebnisse von Mock-Deployments sind synthetisch und werden so gekennzeichnet")
+    if not search_provider:
+        limitations.append("Kein Suchdienst angebunden (CAMPUS_SEARCH_PROVIDER): der Campus erschliesst keine Quellen selbst, nur eingegebene URLs")
     return limitations
 
 
@@ -41,8 +44,8 @@ def health() -> dict:
     adapters = approved_adapter_names()
     return {"status": "ok", "capability_level": s.capability_level, "sandbox_runner": s.sandbox_runner,
             "vault": "configured" if s.vault_database_url else "missing", "build_sha": os.environ.get("CAMPUS_BUILD_SHA", "unknown"),
-            "temporal_mode": temporal_mode, "approved_adapters": adapters,
-            "pilot_limitations": pilot_limitations(s.capability_level, s.sandbox_runner, temporal_mode, adapters)}
+            "temporal_mode": temporal_mode, "approved_adapters": adapters, "search_provider": s.search_provider,
+            "pilot_limitations": pilot_limitations(s.capability_level, s.sandbox_runner, temporal_mode, adapters, s.search_provider)}
 
 
 @router.get("/ready")

@@ -18,6 +18,8 @@ SCHEMA_NAMES = (
     "review_report",  # repository addition (S1)
     "claim_set",  # repository addition (S2)
     "evaluation_verdict",  # repository addition (S3)
+    "search_plan",  # repository addition (source discovery, 14.10.2026)
+    "source_selection",  # repository addition (source discovery, 14.10.2026)
 )
 
 

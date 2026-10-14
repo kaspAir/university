@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phronesis.invalid/contracts/source_selection.schema.json",
+  "title": "source_selection",
+  "description": "Repository addition (14.10.2026): a model's reasoned choice among search hits the core found. Selected hits become sources only after the internet service fetched them; a hit is not a read source.",
+  "type": "object",
+  "properties": {
+    "selected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "hit_id": {"type": "string", "minLength": 1},
+          "sub_question_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+          "reason": {"type": "string", "minLength": 1},
+          "expected_kind": {"enum": ["primary_study", "official_source", "legal_text", "secondary_summary", "vendor_claim", "self_description", "other"]}
+        },
+        "required": ["hit_id", "sub_question_ids", "reason", "expected_kind"],
+        "additionalProperties": false
+      }
+    },
+    "rejected_examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "hit_id": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "required": ["hit_id", "reason"],
+        "additionalProperties": false
+      }
+    },
+    "uncovered_sub_question_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "follow_up_queries": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "required": ["selected", "rejected_examples", "uncovered_sub_question_ids", "follow_up_queries"],
+  "additionalProperties": false
+}

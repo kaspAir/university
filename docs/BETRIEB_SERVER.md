@@ -152,6 +152,36 @@ Dossier führt je Lauf die deklarierten offenen Untersuchungsfragen und Auslassu
 `max_project_cost` werden beim Anlegen von Projekt und Aufgabe durchgesetzt; eine Erhöhung ist eine neue Revision der Forschungsleitung
 (`live_setup.py … policy --policy-revision <rev> --task-chf … --project-chf … --yes`).
 
+### 3b Suchdienst für die eigene Quellenerschliessung (ADR-0017)
+
+Der Campus erschliesst Quellen selbst (Teilfragen und Suchanfragen aus dem Mandat, Suche durch den Kern, begründete Auswahl, Abruf über den
+Internetdienst, Quellenkarte, begrenzte Nachrecherche), sobald ein Suchdienst angebunden ist. Ohne Suchdienst meldet `/health` die
+Einschränkung und der Ablauf arbeitet nur mit eingegebenen Startquellen. Erster Dienst: **Brave Web Search API**.
+
+Voraussetzungen (Betrieb):
+1. Konto und Schlüssel auf `api-dashboard.search.brave.com` (Plan «Search»: USD 5 je 1000 Anfragen, USD 5 Gratisguthaben je Monat;
+   Kreditkarte zur Identitätsprüfung nötig, gelesen 14.10.2026). Preis vor der Preisfassung auf der Preisseite bestätigen.
+2. Schlüssel nur in `campus.env`, per `read -s`; Dienst und Preisfassung in der Umgebung benennen; API und Worker neu starten:
+
+```bash
+umask 077; read -rsp 'Brave-Schlüssel: ' K && printf 'CAMPUS_SECRET_SEARCH_BRAVE=%s\nCAMPUS_SEARCH_PROVIDER=brave\nCAMPUS_SEARCH_PRICING_REF=brave-search-20261014\n' "$K" >> ~/campus-data/secrets/campus.env; unset K; echo; bash ~/campus/ops/server/campusctl.sh restart api worker
+```
+
+3. Preisfassung je Million Suchanfragen registrieren (Betrieb; USD 5 je 1000 = CHF 5000.00 je Million bei Kurs 1.00; Eingabe 0.00):
+
+```bash
+cd ~/campus && .venv/bin/python - <<'EOF'
+import sys; sys.path.insert(0, "ops/server"); from pathlib import Path; from bootstrap_campus import Api
+api = Api("https://university.kaspair.ch"); api.login("ws-campus", "kaspar", Path.home().joinpath("campus-data/secrets/initial-password-kaspar.txt").read_text().strip())
+print(api.cmd("/pricing", {"pricing_ref": "brave-search-20261014", "currency": "CHF", "input_per_million": "0.00", "output_per_million": "5000.00",
+                           "source_note": "Brave Search API, Plan Search, USD 5 je 1000 Anfragen (brave.com/search/api, gelesen 14.10.2026); 1 USD = 1.00 CHF; Einheit = Anfrage"}))
+EOF
+```
+
+Kostenrahmen je Erschliessungsrunde: Plan- und Auswahlaufruf des Erzeugermodells (je einige Rappen) plus Suchanfragen (0.5 Rappen je
+Anfrage); alles gegen das Aufgabenbudget reserviert und abgerechnet, sichtbar im Budgetbaum (Zwecke `discovery_plan`, `search`,
+`discovery_select`). Jede Suchanfrage steht im Audit (`source.search`) mit Treffern; die Quellenkarte ist ein Artefakt `source_map`.
+
 ### 4 Was bleibt
 
 Leistungsebene `development_mock` (Egress-Proxy fehlt, keine Sandbox); Temporal im Entwicklungsmodus; keine Qualifikationsnachweise für die

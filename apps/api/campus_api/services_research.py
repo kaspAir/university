@@ -848,6 +848,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
     db.add(artifact)
     db.flush()
     claims_recorded, claim_set_valid = 0, None
+    declared: dict = {"open_questions": [], "omissions": []}
     if structured:
         try:
             _check_not_truncated(response, "Erzeugungsantwort")
@@ -860,6 +861,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
                    payload={"message": exc.message if isinstance(exc, CampusError) else f"claim_set ungültig: {type(exc).__name__}",
                             "stop_reason": response.stop_reason, "output_tokens": response.usage.output_tokens})
         else:
+            declared = {"open_questions": list(claim_set.open_questions), "omissions": list(claim_set.omissions)}
             claims_recorded = len(services_claims.record_claim_set(db, actor=actor, task=task, attempt=attempt, artifact=artifact, claim_set=claim_set,
                                                                   producer_canonical_model_id=decision.selected_canonical_model_id,
                                                                   correlation_id=correlation_id))
@@ -880,6 +882,7 @@ def start_run(db: Session, *, actor: Actor, task_id: str, routing_decision_id: s
         "cost": actual.format() if actual else "offen", "review_required": decision.required_review,
         "review_deployment_id": decision.review_deployment_id, "artifact_version_id": artifact.id, "artifact_sha256": digest,
         "synthetic": synthetic, "claims_recorded": claims_recorded, "claim_set_valid": claim_set_valid, "passages_given": len(passages),
+        **declared,
     }
 
 

@@ -12,12 +12,14 @@ from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
     from .activities import (
+        DiscoverArgs,
         DossierArgs,
         FlowInput,
         ReviewArgs,
         RunArgs,
         authorize_route,
         build_dossier,
+        discover_sources,
         fetch_sources,
         review_run,
         run_generation,
@@ -62,32 +64,56 @@ class ResearchTaskWorkflow:
             return stopped
         run: dict = {}
         attempts: list[dict] = []
-        for _replan in range(MAX_GENERATION_ATTEMPTS):
-            self._stage = "routing"
-            decision_id = await workflow.execute_activity(authorize_route, flow, start_to_close_timeout=STEP_TIMEOUT, retry_policy=RETRY)
-            self._result["routing_decision_id"] = decision_id
+        discoveries: list[dict] = []
+        gaps: list[str] = []
+        rounds = 0
+        while True:
+            rounds += 1
+            for _replan in range(MAX_GENERATION_ATTEMPTS):
+                self._stage = "routing"
+                decision_id = await workflow.execute_activity(authorize_route, flow, start_to_close_timeout=STEP_TIMEOUT, retry_policy=RETRY)
+                self._result["routing_decision_id"] = decision_id
+                if stopped := self._check_stop():
+                    return stopped
+                if flow.discover:
+                    # the campus finds its own sources under the authorized route; round 2 works from the gaps the previous round left
+                    self._stage = "discovering_sources"
+                    disc = await workflow.execute_activity(
+                        discover_sources,
+                        DiscoverArgs(flow.workspace_id, flow.task_id, decision_id, rounds, gaps, flow.max_queries, flow.max_sources, flow.correlation_id),
+                        start_to_close_timeout=STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
+                    discoveries.append(disc)
+                    self._result["discovery"] = discoveries
+                    if stopped := self._check_stop():
+                        return stopped
+                self._stage = "generating"
+                run = await workflow.execute_activity(run_generation, RunArgs(flow.workspace_id, flow.task_id, decision_id, flow.correlation_id),
+                                                      start_to_close_timeout=STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
+                attempts.append({"routing_decision_id": decision_id, "state": run.get("state"), "end_reason": run.get("end_reason")})
+                self._result["run"], self._result["attempts"] = run, attempts
+                if run.get("state") == "finished" or run.get("end_reason") != "provider_error":
+                    break
+                # provider failure inside the generation step: replan under the same constraints (chapter 10); the core excludes the failed deployment
+            if run.get("state") != "finished":
+                self._stage = "ended_without_result"
+                return {**self._result, "end_reason": run.get("end_reason", "unknown")}
             if stopped := self._check_stop():
                 return stopped
-            self._stage = "generating"
-            run = await workflow.execute_activity(run_generation, RunArgs(flow.workspace_id, flow.task_id, decision_id, flow.correlation_id),
-                                                  start_to_close_timeout=STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
-            attempts.append({"routing_decision_id": decision_id, "state": run.get("state"), "end_reason": run.get("end_reason")})
-            self._result["run"], self._result["attempts"] = run, attempts
-            if run.get("state") == "finished" or run.get("end_reason") != "provider_error":
+            self._stage = "reviewing"
+            review = await workflow.execute_activity(
+                review_run, ReviewArgs(flow.workspace_id, run["run_attempt_id"], flow.correlation_id), start_to_close_timeout=STEP_TIMEOUT,
+                retry_policy=RETRY, task_queue=flow.review_task_queue or workflow.info().task_queue,  # separate reviewer instances (Art. 17)
+            )
+            self._result["review"] = review
+            # limited re-search: the gaps the generation declared, the reviewer's findings and the selection's follow-up queries drive at most
+            # one more round, within the budget; a skipped discovery (no service, no budget) ends the loop
+            last = discoveries[-1] if discoveries else {}
+            gaps = [*run.get("open_questions", []), *[f.get("subject", "") for f in review.get("findings", [])], *last.get("follow_up_queries", [])]
+            gaps = [g for g in gaps if g]
+            if not (flow.discover and rounds < flow.max_rounds and gaps and discoveries and not last.get("skipped")):
                 break
-            # provider failure inside the generation step: replan under the same constraints (chapter 10); the core excludes the failed deployment
-        if run.get("state") != "finished":
-            self._stage = "ended_without_result"
-            return {**self._result, "end_reason": run.get("end_reason", "unknown")}
-        if stopped := self._check_stop():
-            return stopped
-        self._stage = "reviewing"
-        self._result["review"] = await workflow.execute_activity(
-            review_run, ReviewArgs(flow.workspace_id, run["run_attempt_id"], flow.correlation_id), start_to_close_timeout=STEP_TIMEOUT,
-            retry_policy=RETRY, task_queue=flow.review_task_queue or workflow.info().task_queue,  # separate reviewer instances (Art. 17)
-        )
         self._stage = "building_dossier"
         self._result["dossier"] = await workflow.execute_activity(build_dossier, DossierArgs(flow.workspace_id, flow.project_id, flow.correlation_id),
                                                                   start_to_close_timeout=STEP_TIMEOUT, retry_policy=RETRY)
         self._stage = "completed"
-        return {**self._result, "end_reason": "result"}
+        return {**self._result, "end_reason": "result", "rounds": rounds}

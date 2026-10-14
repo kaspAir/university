@@ -51,7 +51,12 @@ Was die Seiten **nicht** tun: keinen Schritt auslösen, keinen Zustand erfinden.
 - Die Auftragsseite zeigt ab dem Schritt «Projekt und Aufgabe» die Modelle des aktiven Katalogs mit **echt · kostet Geld** oder **synthetisch**
   und den Beträgen, die der Kontrollkern für Erzeugung und Gegenprüfung aus den gebundenen Preisen reserviert; dazu die im Workspace bereits
   gespeicherten öffentlichen Quellen zum Einfügen.
-- Betrieb & Kosten zeigt die freigegebenen Adapter des Prozesses, die bestehenden Grenzen (`pilot_limitations`) und das **Aufrufjournal**:
+- Das Ablaufformular bietet die **Quellenerschliessung durch den Campus** (ADR-0017) an, wenn ein Suchdienst angebunden ist: Teilfragen und
+  Suchanfragen aus dem Mandat, begründete Trefferauswahl, Abruf über den Internetdienst, eine begrenzte Nachrecherche; Obergrenzen für
+  Anfragen, Quellen und Runden stehen im Formular. Eingegebene URLs sind optionale Startquellen. Ohne Suchdienst sagt das Formular das.
+- Der Dossier-Leser zeigt die **Quellenkarte**: Teilfragen mit abgerufenen Quellen, nicht beantwortbare Teilfragen, Lücken (nicht abrufbar,
+  nicht durchsuchbar); jede Quellenkarte ist eine eigene Fassung (`source_map`) mit Anfragen, Treffern, Wahlbegründung und Kosten.
+- Betrieb & Kosten zeigt die freigegebenen Adapter des Prozesses, den Suchdienst, die bestehenden Grenzen (`pilot_limitations`) und das **Aufrufjournal**:
   jeder externe Aufruf mit Art (Probe oder Lauf), echt oder synthetisch, Deployment, effektiver Modellkennung, Zustand und Tokens.
 - Die drei Statusachsen (Arbeitsstand, epistemischer Status, Freigabe) stehen nebeneinander und werden nie zu einem Gesamtstatus verschmolzen.
 - Fehlende Gegenprüfung heisst **offen**, nie bestanden. Einwände bleiben sichtbar.

@@ -142,7 +142,7 @@ def _ctx(request: Request, db: Session, actor: Actor, view: str, **extra) -> dic
     ws = db.get(Workspace, actor.workspace_id)
     user = db.get(User, actor.actor_id)
     return {"request": request, "view": view, "user": user, "roles": sorted(r.value for r in actor.roles), "workspace": ws,
-            "capability_level": settings.capability_level, **_call_mode(db, actor),
+            "capability_level": settings.capability_level, "search_provider": settings.search_provider, **_call_mode(db, actor),
             "now": fmt_dt(datetime.now(UTC)), "csrf": request.state.session_row.csrf_token, "counters": _counters(db, actor),
             "can_stop": bool({"research_director", "integrity_officer"} & {r.value for r in actor.roles}),
             "can_decide": "research_director" in {r.value for r in actor.roles}, "task_defaults_json": json.dumps(TASK_DEFAULTS),

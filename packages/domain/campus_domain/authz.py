@@ -29,6 +29,7 @@ COMMAND_ROLES: dict[str, frozenset[Role]] = {
     "catalog.probe": frozenset({Role.OPERATOR}),  # one small real call through the gateway; operations evidence, never research
     "review.start": frozenset({Role.REVIEWER, Role.RESEARCH_DIRECTOR}),
     "source.fetch": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
+    "source.discover": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),  # the campus finds its own sources within the mandate
     "source.retract": frozenset({Role.RESEARCH_DIRECTOR, Role.INTEGRITY_OFFICER}),
     "dossier.build": frozenset({Role.RESEARCH_DIRECTOR, Role.PRODUCER}),
     "artifact.approve": frozenset({Role.RESEARCH_DIRECTOR}),  # result release is reserved (Art. 11, 22)

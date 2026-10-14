@@ -227,6 +227,54 @@ class EvaluationVerdict(_Strict):
     uncertainties: list[str]
 
 
+
+
+# ---------------------------------------------------------------- source discovery (repository addition, 14.10.2026)
+
+
+class SubQuestion(_Strict):
+    id: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    basis: Literal["question_space", "knowledge_goal", "method_frame", "gap", "counter_evidence"]
+
+
+class SearchQuery(_Strict):
+    query: str = Field(min_length=1)
+    sub_question_ids: list[str] = Field(min_length=1)
+    language: str = Field(min_length=2)
+    kind: Literal["evidence", "counter_evidence", "primary_source", "official_source", "practice"]
+    rationale: str = Field(min_length=1)
+
+
+class SearchPlan(_Strict):
+    """What a model derives from the mandate for the campus's own source discovery. The core runs the searches."""
+
+    sub_questions: list[SubQuestion] = Field(min_length=1)
+    queries: list[SearchQuery] = Field(min_length=1)
+    not_searchable: list[str]
+
+
+class SelectedHit(_Strict):
+    hit_id: str = Field(min_length=1)
+    sub_question_ids: list[str] = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    expected_kind: Literal["primary_study", "official_source", "legal_text", "secondary_summary", "vendor_claim", "self_description", "other"]
+
+
+class RejectedHit(_Strict):
+    hit_id: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+
+
+class SourceSelection(_Strict):
+    """A model's reasoned choice among hits the core found; a hit becomes a source only once the internet service fetched it."""
+
+    selected: list[SelectedHit]
+    rejected_examples: list[RejectedHit]
+    uncovered_sub_question_ids: list[str]
+    follow_up_queries: list[str]
+
+
 MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "model_catalog": ModelCatalog,
     "task_need": TaskNeed,
@@ -237,4 +285,6 @@ MODEL_BY_SCHEMA: dict[str, type[_Strict]] = {
     "review_report": ReviewReport,
     "claim_set": ClaimSet,
     "evaluation_verdict": EvaluationVerdict,
+    "search_plan": SearchPlan,
+    "source_selection": SourceSelection,
 }

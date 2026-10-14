@@ -59,6 +59,11 @@
   <div class="chain"><strong>Abhängigkeiten</strong> · {% if doc.dependency_edges %}{% for e in doc.dependency_edges %}<span class="edge">{{ e.from_claim_version_id }} → {{ e.to_claim_version_id }} ({{ e.relation }})</span>{% endfor %}<div style="margin-top:6px">Aussagen mit gemeinsamen Ursprüngen zählen nicht als unabhängige Bestätigung.</div>{% else %}keine Kanten{% endif %}</div>
   {% else %}<div class="empty">Noch keine Aussagen.</div>{% endif %}
 {% elif tab == "quellen" %}
+  {% if doc.source_map %}
+  <div class="label">Quellenkarte des Campus · {{ doc.source_map.rounds }} Runde(n), {{ doc.source_map.queries }} Suchanfragen, {{ doc.source_map.fetched }} abgerufen</div>
+  {% for s in doc.source_map.sub_questions %}<div class="finding"><span class="id">{{ s.id }}</span> · {{ s.question }} · {% if s.sources %}{% for src in s.sources %}<span class="id">{{ src.source_id }}</span> {% endfor %}{% else %}<span class="tag tag-accent">keine abgerufene Quelle</span>{% endif %}</div>{% endfor %}
+  {% for a in doc.source_map.artifact_version_ids %}<a class="btn btn-ghost" href="/campus/artefakte/{{ a }}">Quellenkarte {{ loop.index }}</a>{% endfor %}
+  {% endif %}
   {% if doc.sources %}<div class="tablewrap"><table class="table"><thead><tr><th>ID</th><th>Quelle</th><th>Fassung</th><th>Status</th></tr></thead><tbody>
     {% for s in doc.sources %}<tr><td class="id">{{ s.source_id }}</td><td>{{ s.url or s.title or "–" }}</td><td style="font-size:12px">{{ s.versions|length if s.versions is defined else "–" }} Fassung(en)</td><td><span class="tag {% if s.status != 'active' %}tag-accent{% else %}tag-neutral{% endif %}">{{ s.status }}</span></td></tr>{% endfor %}
   </tbody></table></div>{% else %}<div class="empty">Keine Quellen aufgenommen.</div>{% endif %}

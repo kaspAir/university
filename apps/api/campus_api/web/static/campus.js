@@ -124,7 +124,10 @@
   })();
   if (workflowForm) workflowForm.querySelector("[data-submit]").addEventListener("click", async () => {
     try {
-      await command("/tasks/" + workflowForm.dataset.task + "/workflow", { source_urls: lines(val(workflowForm, "source_urls")), selection_mode: "llm" });
+      const discoverBox = workflowForm.querySelector("[name=discover]");
+      await command("/tasks/" + workflowForm.dataset.task + "/workflow", { source_urls: lines(val(workflowForm, "source_urls")), selection_mode: "llm",
+        discover: !!(discoverBox && discoverBox.checked && !discoverBox.disabled), max_queries: Number(val(workflowForm, "max_queries") || 6),
+        max_sources: Number(val(workflowForm, "max_sources") || 8), max_rounds: Number(val(workflowForm, "max_rounds") || 2) });
       location.reload();
     } catch (e) { fail(workflowForm, e); }
   });

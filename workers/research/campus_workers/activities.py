@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from campus_api import services_claims, services_dossier, services_research, services_sources  # noqa: F401 (claims used by run)
+from campus_api import services_claims, services_dossier, services_research, services_search, services_sources  # noqa: F401 (claims used by run)
 from campus_domain.authz import Role
 from campus_domain.errors import CampusError
 from campus_infra.audit import Actor
@@ -50,6 +50,22 @@ class FlowInput:
     selection_mode: str = "llm"
     correlation_id: str = "workflow"
     review_task_queue: str | None = None  # reviewers may run as separate worker instances (Art. 17)
+    discover: bool = True  # the campus finds its own sources within the mandate; manual URLs are optional start sources
+    max_queries: int = 6
+    max_sources: int = 8
+    max_rounds: int = 2  # one discovery round plus at most one limited re-search driven by gaps and findings
+
+
+@dataclass
+class DiscoverArgs:
+    workspace_id: str
+    task_id: str
+    routing_decision_id: str
+    round_no: int
+    gaps: list[str]
+    max_queries: int
+    max_sources: int
+    correlation_id: str = "workflow"
 
 
 @dataclass
@@ -113,6 +129,24 @@ def authorize_route(flow: FlowInput) -> str:
 
 
 @activity.defn
+def discover_sources(args: DiscoverArgs) -> dict:
+    """One discovery round; an exhausted budget or a missing search service ends discovery with a reason, never the flow."""
+    with _db() as db:
+        try:
+            result = services_search.discover_sources(db, actor=_producer(args.workspace_id), task_id=args.task_id,
+                                                      routing_decision_id=args.routing_decision_id, round_no=args.round_no, gaps=args.gaps,
+                                                      max_queries=args.max_queries, max_sources=args.max_sources, correlation_id=args.correlation_id)
+            db.commit()
+            return result
+        except CampusError as err:
+            db.rollback()
+            if err.code.value in {"BUDGET_EXHAUSTED", "PRICING_UNKNOWN", "NO_ELIGIBLE_MODEL", "PROPOSAL_INVALID"}:
+                activity.logger.warning("discovery skipped: %s %s", err.code.value, err.message)
+                return {"skipped": err.code.value, "message": err.message, "round": args.round_no}
+            raise _translate(err) from err
+
+
+@activity.defn
 def run_generation(args: RunArgs) -> dict:
     with _db() as db:
         existing = db.execute(select(RunAttempt).where(RunAttempt.routing_decision_id == args.routing_decision_id)).scalar_one_or_none()
@@ -167,4 +201,4 @@ def task_exists(args: RunArgs) -> bool:
         return db.get(Task, args.task_id) is not None
 
 
-ALL_ACTIVITIES = [fetch_sources, authorize_route, run_generation, review_run, build_dossier, task_exists]
+ALL_ACTIVITIES = [fetch_sources, authorize_route, discover_sources, run_generation, review_run, build_dossier, task_exists]

@@ -1,0 +1,11 @@
+{
+  "selected": [
+    {"hit_id": "h1", "sub_question_ids": ["q1"], "reason": "Amtliche Seite mit Fristangabe.", "expected_kind": "official_source"},
+    {"hit_id": "h4", "sub_question_ids": ["q2"], "reason": "Fachbeitrag mit Gegenposition.", "expected_kind": "secondary_summary"}
+  ],
+  "rejected_examples": [
+    {"hit_id": "h2", "reason": "Anbieterseite ohne Quellenangabe."}
+  ],
+  "uncovered_sub_question_ids": [],
+  "follow_up_queries": ["Bundesgericht Einsprachefrist automatisierte Verfügung"]
+}

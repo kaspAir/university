@@ -85,10 +85,35 @@ def dossier_document(db: Session, *, actor: Actor, project_id: str) -> dict:
             "release": "blocked" if open_findings or any(r.state == "open" for r in reassessments) else "draft",
             "blocking": {"open_findings": [f.id for f in open_findings], "open_reassessments": [r.id for r in reassessments if r.state == "open"]},
         },
+        "source_map": _source_map_summary(db, project.id),
         "declarations": {"ai_involvement": "Erzeugung und Erstprüfung durch Sprachmodelle; Kontrollkern deterministisch; keine externe Begutachtung",
                          "synthetic_content": any(bool(a.synthetic) for a in db.execute(select(ArtifactVersion).where(
                              ArtifactVersion.task_id.in_([t.id for t in tasks]))).scalars()) if tasks else False},
     }
+
+
+def _source_map_summary(db: Session, project_id: str) -> dict | None:
+    """The campus's own source discovery, as the latest source_map artifact froze it: sub-questions with their fetched sources, and the
+    questions that stay open because nothing fetchable answered them. Absent when no discovery ran (manual sources only)."""
+    maps = db.execute(select(ArtifactVersion).where(ArtifactVersion.project_id == project_id, ArtifactVersion.kind == "source_map")
+                      .order_by(ArtifactVersion.version)).scalars().all()
+    if not maps:
+        return None
+    latest = maps[-1].content
+    covered: dict[str, list[dict]] = {}
+    for m in maps:
+        for f in m.content.get("fetched", []):
+            for sq in f.get("sub_question_ids", []):
+                covered.setdefault(sq, []).append({"source_id": f["source_id"], "url": f["url"], "round": m.content.get("round")})
+    sub_questions = []
+    for m in maps:
+        for s in m.content.get("sub_questions", []):
+            if s["id"] not in {x["id"] for x in sub_questions}:
+                sub_questions.append({**s, "round": m.content.get("round"), "sources": covered.get(s["id"], [])})
+    return {"rounds": len(maps), "artifact_version_ids": [m.id for m in maps], "search_provider": latest.get("search_provider"),
+            "sub_questions": sub_questions, "unanswerable": [s for s in sub_questions if not s["sources"]],
+            "gaps": [g for m in maps for g in m.content.get("gaps", [])], "queries": sum(len(m.content.get("queries", [])) for m in maps),
+            "fetched": sum(len(m.content.get("fetched", [])) for m in maps)}
 
 
 def build_dossier_artifact(db: Session, *, actor: Actor, project_id: str, correlation_id: str) -> ArtifactVersion:
