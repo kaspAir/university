@@ -130,3 +130,22 @@ def test_discovery_refuses_without_search_price_and_reports_missing_service(clie
     # the flow form tells the person whether the campus can discover sources on this instance
     page = client.get(f"/campus/auftrag/{state['mandate']['mandate_version_id']}").text
     assert "kein Suchdienst angebunden" in page or "Quellen selbst" in page
+
+
+def test_a_restarted_flow_can_discover_again_under_the_same_unexecuted_route(client, session_factory, workspace_id):
+    """A restart reuses the authorized route that never ran; discovery must not collide with the journal entries of the failed attempt."""
+    boot, api, state, task, decision_id = _prepare(client, session_factory, workspace_id)
+    kwargs = dict(actor=_producer(boot, workspace_id), task_id=task["task_id"], routing_decision_id=decision_id, round_no=1, gaps=[], max_queries=2,
+                  max_sources=1, correlation_id="t", fetcher=make_fetcher(), search_pricing_ref="search-price-1")
+    with session_factory() as db:
+        first = services_search.discover_sources(db, search=FakeSearch(), **kwargs)
+    with session_factory() as db:
+        second = services_search.discover_sources(db, search=FakeSearch(), **kwargs)
+    assert first["artifact_version_id"] != second["artifact_version_id"]
+    with session_factory() as db:
+        plans = [i.id for i in db.execute(select(LLMInvocation).where(LLMInvocation.routing_decision_id == decision_id)).scalars() if ":discovery_plan:" in i.id]
+        assert len(plans) == 2 and len(set(plans)) == 2
+        stuck = db.execute(select(Reservation).where(Reservation.task_id == task["task_id"], Reservation.purpose.like("discovery%"),
+                                                     Reservation.state == "reserved")).first()
+        assert stuck is None, "every discovery reservation is settled or released"
+

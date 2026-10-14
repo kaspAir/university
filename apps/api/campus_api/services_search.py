@@ -112,7 +112,9 @@ def discover_sources(db: Session, *, actor: Actor, task_id: str, routing_decisio
                                            task_hold_reason=task.hold_reason, route_state=decision.state, reservation_present=True,
                                            policy_revision=decision.routing_policy_ref))
         db.commit()
-        request = LLMRequest(invocation_id=f"{task.id}:{purpose}:{decision.id}:{round_no}", deployment_id=deployment.id, system_rules=rules,
+        # unique per attempt: a restarted flow reuses an authorized, not yet executed route, and the journal refuses a second send under one id
+        attempt_tag = new_id("D")[2:]
+        request = LLMRequest(invocation_id=f"{task.id}:{purpose}:{decision.id}:{round_no}:{attempt_tag}", deployment_id=deployment.id, system_rules=rules,
                              content_blocks=blocks, output_contract=provider_schema(contract),
                              max_output_tokens=_output_bound(db, task, deployment, pricing, reservation, need.context_tokens_estimate, need.max_output_tokens),
                              metadata=metadata | {"routing_decision_id": decision.id, "round_no": round_no})
@@ -120,6 +122,12 @@ def discover_sources(db: Session, *, actor: Actor, task_id: str, routing_decisio
             response = gateway.invoke(request, deployment, decision)
         except CampusError as err:
             _settle_after_failure(db, reservation, pricing, err)
+            db.commit()
+            raise
+        except Exception:
+            # the gateway maps every provider outcome to a CampusError; anything else failed before the send (e.g. the journal refused):
+            # nothing left the campus, so the reservation is released instead of staying bound
+            reservation.state = "released"
             db.commit()
             raise
         cost = _settle_from_usage(db, reservation, pricing, response.usage)
