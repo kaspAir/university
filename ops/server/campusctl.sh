@@ -1,6 +1,6 @@
 #!/bin/bash
 # Control of the userland pilot environment: PostgreSQL (socket only), Temporal dev server (127.0.0.1), API (127.0.0.1), worker.
-# Usage: campusctl.sh {start|stop|restart|status|health} [pg|temporal|api|worker|all]
+# Usage: campusctl.sh {start|stop|restart|status|health} [pg|temporal|api|worker ...|all]   (several components allowed)
 # Started processes never inherit fd 9 (the flock of keepalive/deploy); otherwise a running API would hold the lock forever.
 # All state lives below $CAMPUS_DATA; nothing is public: PostgreSQL has no TCP listener, Temporal and the API bind to 127.0.0.1.
 set -u
@@ -79,8 +79,12 @@ stop_worker() { stop_pid "$RUN/worker.pid" worker; }
 
 # ---------------------------------------------------------------- dispatch
 COMPS="pg temporal api worker"
-cmd="${1:-status}"; comp="${2:-all}"
-[ "$comp" = all ] || COMPS="$comp"
+cmd="${1:-status}"; shift || true
+# any number of components in dependency order ("restart api worker" restarts both); none or "all" means every component
+if [ "$#" -gt 0 ] && [ "$*" != all ]; then
+  for c in "$@"; do case "$c" in pg|temporal|api|worker) ;; *) echo "unbekannte Komponente: $c" >&2; exit 2 ;; esac; done
+  COMPS="$(for k in pg temporal api worker; do for c in "$@"; do [ "$c" = "$k" ] && printf '%s ' "$k"; done; done)"
+fi
 rc=0
 case "$cmd" in
   start)   for c in $COMPS; do "start_$c" || rc=1; done ;;
@@ -90,6 +94,6 @@ case "$cmd" in
   status)  for c in $COMPS; do if "health_$c"; then echo "$c: ok"; else echo "$c: nicht gesund"; rc=1; fi; done
            echo "build: $(cat "$RUN/deployed.sha" 2>/dev/null || echo unbekannt)"
            if ready_api; then echo "ready: ja (Policy und Katalog aktiv)"; else echo "ready: nein (Policy oder Katalog fehlt; kein Neustartgrund)"; fi ;;
-  *) echo "usage: $0 {start|stop|restart|status|health} [pg|temporal|api|worker|all]" >&2; exit 2 ;;
+  *) echo "usage: $0 {start|stop|restart|status|health} [pg|temporal|api|worker ...|all]" >&2; exit 2 ;;
 esac
 exit $rc

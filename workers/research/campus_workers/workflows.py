@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     from .activities import (
@@ -84,6 +85,12 @@ class ResearchTaskWorkflow:
                         start_to_close_timeout=STEP_TIMEOUT, retry_policy=GENERATION_RETRY)
                     discoveries.append(disc)
                     self._result["discovery"] = discoveries
+                    if disc.get("skipped") and not self._result.get("source_ids") and not any(d.get("fetched") for d in discoveries):
+                        # discovery was asked for but could not run, and nothing was entered by hand: a generation without any source
+                        # would only produce hypotheses for money. The flow ends visibly; the page offers a new flow once the cause is fixed.
+                        self._stage = "ended_without_sources"
+                        raise ApplicationError(f"Keine Quellen: Erschliessung übersprungen ({disc.get('skipped')}: {disc.get('message', '')}) und "
+                                               "keine Startquellen eingegeben; keine Erzeugung ohne Quellenbasis", non_retryable=True)
                     if stopped := self._check_stop():
                         return stopped
                 self._stage = "generating"
