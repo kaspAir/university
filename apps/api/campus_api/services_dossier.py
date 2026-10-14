@@ -19,6 +19,7 @@ from campus_infra.ids import new_id
 from campus_infra.models import (
     Approval,
     ArtifactVersion,
+    AuditEvent,
     FindingRecord,
     HumanDecision,
     MandateVersion,
@@ -53,6 +54,10 @@ def dossier_document(db: Session, *, actor: Actor, project_id: str) -> dict:
     reassessments = db.execute(select(ReassessmentTask).where(ReassessmentTask.project_id == project.id)).scalars().all()
     claims = services_claims.project_claims(db, actor=actor, project_id=project.id, include_graph=True)
     open_findings = [f for f in findings if f.status == "open"]
+    # what each generation declared beyond its claims (next questions, what it left out): recorded with the claims in the audit trail
+    notes = {e.object_id: e.payload or {} for e in db.execute(select(AuditEvent).where(
+        AuditEvent.command == "claim.record", AuditEvent.policy_decision == "allowed", AuditEvent.object_id.in_([r.id for r in runs])
+    )).scalars()} if runs else {}
     return {
         "dossier_schema": "1.0",
         "project": {"project_id": project.id, "title": project.title, "institute_id": project.institute_id, "work_state": project.work_state},
@@ -63,7 +68,9 @@ def dossier_document(db: Session, *, actor: Actor, project_id: str) -> dict:
                       "qualification_mode": t.task_need["qualification_mode"], "data_labels": t.task_need["data_labels"]} for t in tasks],
         "sources": services_sources.project_sources(db, actor=actor, project_id=project.id),
         "runs": [{"run_attempt_id": r.id, "task_id": r.task_id, "attempt_no": r.attempt_no, "state": r.state, "end_reason": r.end_reason,
-                  "routing_decision_id": r.routing_decision_id, "agent_profile_version_id": r.agent_profile_version_id} for r in runs],
+                  "routing_decision_id": r.routing_decision_id, "agent_profile_version_id": r.agent_profile_version_id,
+                  "open_questions": list(notes.get(r.id, {}).get("open_questions") or []), "omissions": list(notes.get(r.id, {}).get("omissions") or [])}
+                 for r in runs],
         "claims": claims["claims"],
         "dependency_edges": claims["edges"],
         "reviews": [{"review_report_id": r.id, "run_attempt_id": r.run_attempt_id, "verdict": r.verdict, "artifact_sha256": r.artifact_sha256,

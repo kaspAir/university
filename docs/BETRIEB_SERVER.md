@@ -138,6 +138,20 @@ in der Grössenordnung von zehn Rappen (Selector, Erzeugung, Gegenprüfung), ein
    Geld» und die Reservierungen), Ablauf starten mit der Quell-URL, Stand verfolgen, Dossier lesen (Aussagen mit `passage_id`-Belegen,
    Prüfbericht des anderen Modells), Ergebnisfreigabe entscheiden. Betrieb & Kosten zeigt jeden Aufruf im Journal.
 
+### 3a Reale Vorhaben (Stand 14.10.2026): Mandatsentwürfe aus Datei
+
+Die ersten realen Forschungsaufträge liegen als Mandatsdateien unter `ops/server/mandates/` (F-01 BKI, F-02 Mensch21!): nur die Felder
+der Mandatsmaske (Art. 9), Datenklasse `public`; das persönliche Kontextblatt zu F-02 ist bewusst nicht enthalten, weil die Texte an externe
+Modelle gehen. `live_mandate.py --file <datei> draft` legt den Entwurf an (idempotent nach Titel), `show` nennt Institut, Profil und die
+Start-Quellen zum Einfügen in das Ablaufformular. Entscheid, Projekt, Aufgabe (Etappe A), Ablauf und Beurteilung laufen im Browser.
+
+Seit 14.10.2026 erhalten Erzeuger **und** Prüfer den Forschungsauftrag selbst im Anfrageblock `mandate` (Frage, Erkenntnisziel,
+Methodenrahmen; Erzeuger zusätzlich Zugangs- und Risikoregeln, Prüfer die Prüfanforderungen). Nachweis ohne Kosten:
+`tests/integration/test_mandate_binding.py` fängt die Anfragen am Gateway ab (zwei Aufträge, dieselbe Quelle, je eigene Frage). Das
+Dossier führt je Lauf die deklarierten offenen Untersuchungsfragen und Auslassungen. Die Policy-Limits `max_task_cost` und
+`max_project_cost` werden beim Anlegen von Projekt und Aufgabe durchgesetzt; eine Erhöhung ist eine neue Revision der Forschungsleitung
+(`live_setup.py … policy --policy-revision <rev> --task-chf … --project-chf … --yes`).
+
 ### 4 Was bleibt
 
 Leistungsebene `development_mock` (Egress-Proxy fehlt, keine Sandbox); Temporal im Entwicklungsmodus; keine Qualifikationsnachweise für die

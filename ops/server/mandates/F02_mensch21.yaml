@@ -1,0 +1,90 @@
+# F-02 – Mandatsentwurf für den Campus (Felder der Mandatsmaske, Art. 9). Quelle: Phronesis_F02_Mensch21_Forschungsauftrag_V0.1.md (14.10.2026).
+# Das separate Kontextblatt mit persönlichen Angaben ist bewusst NICHT enthalten: Datenklasse public, die Texte gehen an externe Modelle.
+# Start-Quellen sind keine Mandatsfelder; sie werden beim Ablaufstart im Browser eingefügt (Liste unten).
+institute: recht
+budget: "20.00"
+currency: CHF
+document:
+  title: "F-02: Mensch21! – Ist eine Förderstiftung die bessere Organisationsform?"
+  question_space: |
+    Welche Organisations- und Rechtsform ermöglicht Mensch21! unter den tatsächlichen finanziellen und personellen Bedingungen eine langfristig tragfähige Förderung von Menschen mit Trisomie 21 mit möglichst geringer eigener operativer Belastung?
+
+    Vergleiche:
+    A. Den bestehenden Verein, angepasst auf die Förderung von Aktivitäten Dritter, ohne eigene operative Projekte.
+    B. Eine eigenständige Förderstiftung.
+    C. Soweit rechtlich und praktisch geeignet, einen zweckgebundenen Fonds unter einer bestehenden Dachstiftung oder einer vergleichbaren Trägerlösung.
+
+    Prüfe, unter welchen Bedingungen die Stiftung gegenüber den Alternativen besser ist, und unter welchen nicht. Unterscheide Rechtsform, Förderstrategie, Finanzierung und öffentliche Positionierung. Eine Umbenennung allein ist keine rechtliche Umgestaltung.
+
+    Die gewünschte Förderausrichtung und der Verzicht auf eigene operative Projekte sind gesetzt. Eine Rückkehr zum eigenen Bistrobetrieb ist keine Untersuchungsvariante. Eine bereits bevorzugte oder beschlossene Stiftungsabsicht ist als Ausgangslage offenzulegen, aber kein Beleg für deren Vorteil.
+  knowledge_goal: |
+    Erarbeite eine quellenbasierte Entscheidungsvorlage für die verantwortlichen Organe von Mensch21!, die Nutzen, Bindungen, Kosten und Risiken der drei Varianten konkret vergleicht.
+
+    Ergebnisbestandteile:
+    1. Gesicherte Ausgangslage und gesonderte Liste noch ungeprüfter Angaben.
+    2. Vergleich der Rechts- und Organisationsformen anhand vorab genannter Kriterien.
+    3. Gründungs-/Umstellungskosten, laufende Sachkosten, Verwaltungsstunden, Aufsicht und Revision; Belege oder ausdrücklich bezeichnete Bandbreiten statt erfundener Tarife.
+    4. Einfaches Fünfjahresmodell mit gleicher Förderstrategie und gleichen Einnahmenannahmen je Variante; fehlende Werte offenlassen oder als Sensitivitätsannahmen führen.
+    5. Begründete Empfehlung mit Bedingungen, Gegenargumenten und Aussagen, deren Klärung das Ergebnis ändern könnte.
+    6. Umsetzungsskizze nur für die bevorzugte, rechtlich geprüfte Variante und konkrete Prüffragen an Notariat, Steuerbehörde und zuständige Stiftungsaufsicht.
+
+    Ein zulässiges Ergebnis lautet auch: derzeit Förderverein, Stiftung später bei bestimmten Bedingungen; Dachlösung günstiger; oder Unterlagen reichen für eine Schlussentscheidung noch nicht. Kein Gutachten mit vorbestelltem Ja.
+
+    Erste Etappe (A) dieses Mandats: belegte Ausgangslage aus den öffentlichen Quellen, Quellenkarte der Rechtsgrundlagen und der Selbstdarstellung von Mensch21!, gesonderte Liste ungeprüfter Angaben und die nächsten sachlichen Untersuchungsfragen; Etappen B (Rechts- und Organisationsvergleich) und C (Gegenprüfung, Synthese, nächste Entscheidung) folgen als eigene Aufgaben.
+  method_frame: |
+    Rechtsdogmatische Analyse des schweizerischen Vereins- und Stiftungsrechts kombiniert mit einer Organisations- und Wirtschaftlichkeitsanalyse.
+
+    Arbeite mit dem geltenden Normtext, amtlichen Erläuterungen und aktueller einschlägiger Praxis. Die amtlichen Hinweise von Aufsichts- und Steuerbehörden sind von Gesetz, Rechtsprechung und eigenen Wertungen zu trennen. Aus dem bisherigen Vereinssitz nicht automatisch auf künftigen Stiftungssitz und zuständige Aufsicht schliessen.
+
+    Prüfe insbesondere Zweckbindung, Mitgliederrechte bzw. Stiftungsorganisation, Änderungsspielräume, Governance, Aufsicht, Rechnungslegung und Revision einschliesslich allfälliger Befreiungsvoraussetzungen, Steuerbefreiung, Spendenvoraussetzungen, Übertragung von Vermögenswerten und Bindungen aus bisherigen Zuwendungen. Nicht jede Stiftung unterliegt der ESA; die konkrete Zuständigkeit ist zu ermitteln.
+
+    Vergleiche bei sämtlichen Varianten dieselbe Förderstrategie ohne Eigenbetrieb. Halte den Nutzen eines Rechtsformwechsels vom Nutzen der Aufgabe des Bistrobetriebs getrennt. Steuerbefreiung nicht als automatisches Alleinstellungsmerkmal der Stiftung behandeln.
+
+    Fördereinnahmen: Zwischen zugesagten, historisch beobachteten und bloss erwarteten Einnahmen unterscheiden. Frühere Spenden sind kein gesicherter jährlicher Zufluss. Eine grössere Glaubwürdigkeit oder höhere Förderbereitschaft wegen der Bezeichnung Stiftung ist eine zu prüfende Hypothese, keine Tatsache.
+
+    Finanzmodell: Anfangsmittel minus einmalige Kosten plus Spenden und Nettoanlageerträge minus Förderauszahlungen und laufende Gesamtkosten. Mit ausbleibenden und schwankenden Spenden, keinem oder negativem Anlageertrag sowie veränderten Kosten rechnen. Substanzerhalt und bewussten Kapitalverbrauch als unterschiedliche Strategien ausweisen. Keine automatische Renditegarantie und keine Anlageempfehlung.
+
+    Die entscheidenden Rechts- und Rechenannahmen sind unabhängig gegenzuprüfen. Fehlt eine sichere Rechenumgebung, Berechnungen ausserhalb der Modellausgabe kontrollieren; keine Modellrechnung als ausgeführtes Experiment darstellen. Ein zweites Sprachmodell ersetzt keine erforderliche fachjuristische Prüfung vor tatsächlichen Gründungshandlungen.
+
+    Der Campus verarbeitet in dieser Phase nur die beim Ablaufstart eingegebenen öffentlichen URLs; die Quellenauswahl ist damit extern kuratiert.
+  data_labels: [public]
+  access_rules: |
+    Phase 1 verwendet öffentliche amtliche Quellen, veröffentlichte Informationen von Mensch21! und rechtmässig zugängliche Fachliteratur. Die Website kann historische Informationen enthalten; Stand und Aktualität jeder Angabe prüfen.
+    Nichtöffentliche Jahresabschlüsse, Spenderlisten, Verträge, Beschlüsse und Liquidationsakten nur über einen ausdrücklich freigegebenen Datenweg verwenden. Keine identifizierenden Daten betreuter Menschen oder Gesundheitsdaten erheben. Keine automatische Übertragung interner Unterlagen an externe Modelle unter der Datenklasse public.
+    Keine Kontaktaufnahme mit Behörden, Dachstiftungen, Gönnern oder Geschäftspartnern ohne ausdrücklichen Auftrag. Keine Rechtsgeschäfte, Registeranmeldungen, Vermögensübertragungen oder Zahlungen auslösen.
+  risk_rules: |
+    Keine Bestätigungsforschung zugunsten der Stiftung. Keine Wiederaufnahme eigener operativer Projekte als Lösungsvariante. Keine Gleichsetzung von Website-Angaben, aktuellen Rechtsnachweisen und persönlichen Auskünften.
+    Mensch21! und die zugehörige GmbH sind getrennt zu untersuchen. Keine offenen Forderungen, Schuldübernahmen oder Abschlussstände erfinden. Eine berichtete Schuldentilgung oder Liquidation ist vor rechtlich relevanten Schritten durch Dokumente zu bestätigen.
+    Die Studie unterstützt eine verantwortliche Entscheidung, ersetzt aber nicht die fallbezogene Prüfung von Gründung, Steuern und Vermögensübertragung durch die zuständigen Fachpersonen und Behörden.
+  review_requirements: |
+    Jede rechtliche Kernaussage nennt Norm oder amtliche Quelle mit gültiger Fassung, Geltungsbereich und Anwendung auf den Fall. Lücken und Widersprüche bleiben sichtbar. Angaben der Forschungsleitung werden als solche gekennzeichnet und nicht als öffentlich überprüft ausgegeben.
+    Bewertungskriterien getrennt darstellen: Förderwirkung und langfristige Zwecktreue; finanzielle Tragfähigkeit und frei verfügbare Fördermittel; ehrenamtlicher und administrativer Aufwand; Mitsprache, Nachfolge und Verantwortlichkeiten; Flexibilität und Reversibilität; Zugänglichkeit für Spenden und andere Fördermittel; rechtliche Umsetzbarkeit und Übergangsrisiken.
+    Bewertung und Gewichtung begründen; rechtliche Ausschlussgründe nicht durch wirtschaftliche Pluspunkte aufrechnen. Subjektive Kriterien nicht hinter scheinpräzisen Gesamtnoten verstecken.
+    Jede behauptete Verbesserung beim Fundraising benötigt eigene Evidenz. Jede Kostenposition nennt Quelle, Annahme oder noch benötigte Offerte. Keine endgültige Empfehlung ohne Würdigung des bestehenden Vermögens, allfälliger Zweckbindungen und der erwarteten laufenden Finanzierung.
+  duration_days: 7
+  report_points:
+    - "Nach dem ersten Auswertungslauf: Ausgangslage, aktuelle Rechtsquellen, Vergleichsvarianten und offene Unterlagen"
+    - "Tag 3: Vorläufiger Vergleich von Governance, Aufwand, Zweckbindung und Finanzierung"
+    - "Tag 7: Entscheidungsvorlage der ersten Phase mit bedingter Empfehlung oder ausdrücklich noch offener Entscheidungsfrage"
+start_sources:
+  - id: M01
+    url: https://www.mensch21.ch/verein/
+    note: Vereinsdarstellung und Statutenauszug; der Auszug ersetzt nicht die vollständige gültige Fassung.
+  - id: M02
+    url: https://www.mensch21.ch/projekt/
+    note: Öffentliche Selbstaussagen zu Steuerbefreiung und Bistrobetrieb; Aktualität prüfen.
+  - id: M03
+    url: https://www.esa.admin.ch/de/fragen-und-antworten
+    note: ESA-Praxis; nicht als überall identische gesetzliche Vorgabe ausgeben.
+  - id: M04
+    url: https://www.esa.admin.ch/de/rechtliche-grundlagen
+    note: Zugang zu den einschlägigen Erlassen; Normen im Original und in gültiger Fassung lesen.
+  - id: M05
+    url: https://www.esa.admin.ch/de/gebuehren
+    note: Nur bei Zuständigkeit und passendem Leistungstatbestand anwenden.
+  - id: M06
+    url: https://www.taxinfo.sv.fin.be.ch/taxinfo/01052ba2-c59b-4ac3-ad3f-db3143931ae3
+    note: Amtliche kantonale Praxis zur Steuerbefreiung juristischer Personen.
+  - id: M07
+    url: https://ceps.unibas.ch/de/
+    note: Einstieg zu einschlägiger Forschung; kein Ersatz für konkrete zitierte Studien.

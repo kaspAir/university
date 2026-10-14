@@ -13,6 +13,7 @@ references, prices, data authorizations and catalog/policy drafts, and it change
              Nothing is activated; the probes run against the draft: campus-admin probe-invocation --deployment-id <id> --max-cost …
   activate   activates the catalog draft (operator) and the policy draft (research director) once the operator confirms the probes
              with --probed <deployment id> for every enabled deployment. No qualification evidence is created here.
+  policy     a new policy revision copied from the active one with changed cost limits (research director); nothing else changes
 
 Usage on the host:
   .venv/bin/python ops/server/live_setup.py --workspace ws-campus --username <user> --password-file <file> --base https://<host> <step> …
@@ -193,6 +194,38 @@ def prepare(api: Api, a) -> int:
     return 0
 
 
+def policy(api: Api, a) -> int:
+    """A new policy revision with changed limits, copied from the active one: a director's decision, nothing else changes."""
+    active = next((p for p in api.get("/policies") if p["state"] == "active"), None)
+    if active is None:
+        print("Keine aktive Policy")
+        return 2
+    doc = dict(active["document"])
+    doc["revision"] = a.policy_revision
+    doc["activation_state"] = "draft"
+    doc["limits"] = dict(doc["limits"]) | {"max_task_cost": a.task_chf, "max_project_cost": a.project_chf}
+    doc["note"] = a.note
+    print(f"== Plan: Policy {a.policy_revision} aus {active['revision']} mit Limits max_task_cost {a.task_chf}, max_project_cost {a.project_chf} "
+          f"(Forschungsleitung); Selector-Pool und harte Regeln unverändert. Laufende Aufgaben bleiben an ihre Policy gebunden.")
+    if not a.yes:
+        print("Ohne --yes wurde nichts geschrieben.")
+        return 0
+    if any(p["revision"] == a.policy_revision for p in api.get("/policies")):
+        print("Policy", a.policy_revision, "bereits registriert")
+    else:
+        code, body = try_cmd(api, "/policies", {"document": doc})
+        print("  Policy-Entwurf", a.policy_revision, body.get("policy_id") if code == 201 else f"-> {code} {body.get('code')}: {body.get('message')}")
+        if code != 201:
+            return 2
+    pol = next(p for p in api.get("/policies") if p["revision"] == a.policy_revision)
+    if pol["state"] == "draft":
+        code, body = try_cmd(api, f"/policies/{pol['policy_id']}/activate", {})
+        print("  Policy aktiviert" if code == 200 else f"  Policy NICHT aktiviert -> {code} {body.get('code')}: {body.get('message')}")
+        return 0 if code == 200 else 2
+    print("  Policy ist", pol["state"])
+    return 0
+
+
 def activate(api: Api, a) -> int:
     revisions = {r["revision"]: r for r in api.get("/model-catalog/status")["revisions"]}
     rev = revisions.get(a.revision)
@@ -259,6 +292,12 @@ def main() -> int:
     p.add_argument("--selector-first", default="anthropic", choices=sorted(PROVIDERS))
     p.add_argument("--out", default=None, help="Katalogentwurf zusätzlich als YAML speichern (keine Geheimnisse, nur Referenzen)")
     p.add_argument("--yes", action="store_true")
+    p = sub.add_parser("policy")
+    p.add_argument("--policy-revision", required=True)
+    p.add_argument("--task-chf", required=True)
+    p.add_argument("--project-chf", required=True)
+    p.add_argument("--note", default="Limits fuer die ersten realen Vorhaben; bestaetigt durch die Forschungsleitung.")
+    p.add_argument("--yes", action="store_true")
     p = sub.add_parser("activate")
     p.add_argument("--revision", default="pilot-live-1")
     p.add_argument("--policy-revision", default="pilot-policy-2")
@@ -268,7 +307,7 @@ def main() -> int:
     api = Api(a.base)
     me = api.login(a.workspace, a.username, Path(a.password_file).read_text(encoding="utf-8").strip())
     print("angemeldet:", me["display_name"], me["roles"], "Leistungsebene", me["capability_level"])
-    return {"status": status, "discover": discover, "prepare": prepare, "activate": activate}[a.step](api, a)
+    return {"status": status, "discover": discover, "prepare": prepare, "policy": policy, "activate": activate}[a.step](api, a)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,77 @@
+# F-01 – Mandatsentwurf für den Campus (Felder der Mandatsmaske, Art. 9). Quelle: Phronesis_F01_BKI_Forschungsauftrag_V0.1.md (14.10.2026).
+# Der Entwurf wird mit `ops/server/live_mandate.py --file ... draft` angelegt und wartet auf den Entscheid der Forschungsleitung.
+# Start-Quellen sind keine Mandatsfelder; sie werden beim Ablaufstart im Browser eingefügt (Liste unten).
+institute: angewandt
+budget: "20.00"
+currency: CHF
+document:
+  title: "F-01: Zukunft der Beratungsdienstleistungen der BKI AG – KI, Kundennutzen und neue Angebote"
+  question_space: |
+    Wie könnten sich Nachfrage, Wertschöpfung und Leistungsformen der BKI AG bis 2030 verändern, wenn sowohl Berater als auch Auftraggeber zunehmend KI einsetzen?
+
+    Untersuche das öffentlich dokumentierte BKI-Portfolio: Projekt- und Programmmanagement, Qualitäts- und Risikomanagement, Projektportfoliomanagement, Methoden und Prozesse sowie Ausbildung und Workshops. Unterscheide die Automatisierung einzelner Tätigkeiten von der Veränderung ganzer Dienstleistungen und vom Wegfall oder Entstehen von Nachfrage.
+
+    Welche neuen, glaubwürdig differenzierenden Dienstleistungen könnte die BKI daraus entwickeln? Vergleiche potenzielle Angebote nicht nur mit herkömmlicher Beratung, sondern auch mit der Eigenleistung des Kunden mit KI und mit bestehenden Produkten oder Diensten. Forschung als Dienstleistung (RaaS) und der Phronesis Campus sind mögliche Mittel, keine vorab als überlegen gesetzte Lösung.
+
+    Betrachte die nächsten 12 bis 24 Monate als Handlungshorizont und 2030 als Szenariohorizont. Keine sichere Vorhersage oder unbelegte Marktanteilsprognose.
+  knowledge_goal: |
+    Erarbeite eine belegte Erststudie, die der BKI konkrete Entscheidungen über die Weiterentwicklung und Ergänzung ihres Dienstleistungsportfolios ermöglicht.
+
+    Ergebnisbestandteile:
+    1. Eine Ist-Landkarte der öffentlich angebotenen Leistungen mit datierten Quellen.
+    2. Eine Gegenüberstellung: betroffene Tätigkeit, heutiger Kundennutzen, mögliche KI-Veränderung auf Berater- und Kundenseite, verbleibender oder neuer Bedarf, Evidenz und Unsicherheit.
+    3. Drei konsistente Zukunftsszenarien, ausdrücklich als Szenarien und nicht als Prognosen bezeichnet.
+    4. Drei bis fünf priorisierte Angebotskandidaten mit Zielkunde, Problem, Leistung, Abgrenzung zur KI-Eigennutzung, benötigter Kompetenz, möglicher Vergütungslogik und einfacher Validierung.
+    5. Ein begründeter nächster Pilotvorschlag und eine Liste der Informationen, die für einen belastbaren Geschäftsentscheid noch fehlen.
+
+    Nicht Ziel der ersten Phase: behauptete Zahlungsbereitschaft, erfundene Kundengespräche, definitive Umsatzplanung oder eine Werbebroschüre für den Campus.
+
+    Erste Etappe (A) dieses Mandats: belegte Ausgangslage, Quellenkarte und die nächsten sachlichen Untersuchungsfragen; Etappen B (Sachanalyse) und C (Gegenprüfung, Synthese, nächste Entscheidung) folgen als eigene Aufgaben.
+  method_frame: |
+    Phase 1: Quellenbasierte Fallstudie mit nachvollziehbarer Such- und Auswahlstrategie.
+    Beginne mit den freigegebenen Startquellen. BKI-Webseiten belegen die Selbstdarstellung des Angebots, nicht dessen Qualität, Umsatzverteilung oder Marktführerschaft. Suche ergänzend Primärstudien zu KI in professioneller Wissensarbeit und direkte Leistungsbeschreibungen relevanter Wettbewerber. Produktangaben sind Anbieterbehauptungen, sofern kein unabhängiger Wirksamkeitsnachweis vorliegt.
+
+    Führe ein Quellenregister mit URL, Titel, Herausgeber, Datum, Abrufdatum, verfügbarem Umfang und verwendeten Passagen. Bei eingeschränktem Volltextzugang keine Volltextprüfung behaupten. Eine Studie in mehreren Fassungen nur einmal als unabhängige Untersuchung zählen.
+
+    Trenne empirische Befunde, Übertragungen auf BKI, Zukunftsszenarien und eigene Dienstleistungsvorschläge. Ergebnisse zu einzelnen Aufgaben, Firmen oder Modellgenerationen nicht pauschal auf das gesamte BKI-Portfolio übertragen.
+
+    Prüfe die konkurrierenden Möglichkeiten: Effizienzgewinn, Preis- oder Nachfragerückgang, kundeninterne Übernahme, neue Leistungen und zusätzliche Nachfrage. Suche aktiv nach Gegenbelegen. KI-Nutzung der Auftraggeber gleichrangig mit derjenigen der Berater behandeln.
+
+    Die Gegenprüfung erfolgt durch ein anderes zugelassenes Modell. Es erhält die konkrete Forschungsfrage, die angeforderte Leistung, die Quellenpassagen und die Ergebnisfassung, nicht bloss einen Auftragstitel. Fehler und ungelöste Einwände bleiben sichtbar.
+
+    Für Phase 2 können echte Gespräche mit BKI und Kunden vorgeschlagen werden. Sie werden nicht als bereits geführt dargestellt und nicht ohne gesonderten Auftrag organisiert. Wissenschaftliche Veröffentlichung und interne BKI-Verwendung sind getrennte Zwecke.
+
+    Der Campus verarbeitet in dieser Phase nur die beim Ablaufstart eingegebenen öffentlichen URLs; die Quellenauswahl ist damit extern kuratiert und die Auswertung eine abgegrenzte Quellenstudie, keine vollständige Recherche.
+  data_labels: [public]
+  access_rules: |
+    Zunächst nur rechtmässig zugängliche öffentliche Quellen über den freigegebenen Rechercheweg (Internetdienst des Campus). Keine vertraulichen Kundenunterlagen, internen BKI-Umsätze, persönlichen Leistungsdaten oder Zugangsdaten verwenden. Keine Konten, Käufe oder externen Kontaktaufnahmen ohne gesonderte Erlaubnis.
+    Die Recherche gilt nicht stillschweigend als vollständig, wenn der Campus nur manuell vorgegebene URLs verarbeiten kann: externe Quellenauswahl dokumentieren und die Auswertung als abgegrenzte Quellenstudie bezeichnen.
+  risk_rules: |
+    Keine Eingriffe in Produktivsysteme, keine Codeausführung und keine Personenstudie in Phase 1. Keine individuellen Personal- oder Stellenabbauempfehlungen. Keine Garantie über den künftigen Markt.
+    Auftraggeber dieses Entwurfs ist Kaspar; ein offizielles Mandat der BKI ist damit nicht unterstellt. BKI-Bezug, Kaspars Rolle und die eigene Beteiligung am Campus bei späterer Veröffentlichung transparent behandeln. Keine Weitergabe oder Veröffentlichung im Namen der BKI ohne Freigabe.
+    Verbindliche Grenzen der ersten Lieferung: keine behaupteten Markterhebungen ohne Erhebung, keine scheinexakten Ranglisten ohne offengelegte Kriterien; BKI-Interesse darf den Befund nicht vorgeben; ein erster Forschungsbericht ist nicht automatisch ein einreichungsreifes Paper.
+  review_requirements: |
+    Prüfe jede wesentliche Tatsachenbehauptung auf tatsächliche Deckung durch die angegebene Quelle. Vermerke direkte Evidenz, Übertragungsannahmen und offene Punkte getrennt. Keine Konsensabstimmung von Modellen als Wahrheitsnachweis.
+    Für jeden priorisierten Angebotskandidaten muss beantwortet sein: Welches konkrete Kundenproblem wird besser gelöst? Warum genügt Kunden-Eigenleistung mit verfügbaren KI-Produkten nicht? Welche Fähigkeit bringt BKI ein? Welche Annahme ist noch durch Kunden oder Markt zu prüfen? Unter welchen Bedingungen sollte BKI das Angebot nicht verfolgen?
+    Der Bericht darf zum Ergebnis kommen, dass für einen Vorschlag keine ausreichende Differenzierung oder Evidenz vorliegt. Keine RaaS- oder Campus-Empfehlung allein aufgrund unserer Präferenz.
+  duration_days: 7
+  report_points:
+    - "Nach dem ersten Auswertungslauf: Ist-Portfolio, Quellenbestand, Suchgrenzen und erste offene Fragen"
+    - "Tag 3: Veränderungsbild und konkurrierende Szenarien, soweit Material vorliegt"
+    - "Tag 7: Erststudie mit priorisierten Angebotskandidaten und Plan der nächsten Validierung oder begründeter Zwischenstand"
+start_sources:
+  - id: B01
+    url: https://www.bki.ch/
+    note: Öffentlich kommunizierte Leistungen; Selbstdarstellung, kein unabhängiger Erfolgsnachweis.
+  - id: B02
+    url: https://www.bki.ch/projektmanagement
+    note: Konkrete Leistungsbeschreibung.
+  - id: B03
+    url: https://www.bki.ch/qualitaets-risikomanagement-2
+    note: Leistungsverständnis und Rolle gegenüber Auftraggebern.
+  - id: B04
+    url: https://aiinstitute.hbs.edu/navigating-the-jagged-technological-frontier/
+    note: Zugängliche Forschungszusammenfassung; nicht mit geprüftem Volltext verwechseln.
+  - id: B05
+    url: https://pubsonline.informs.org/doi/10.1287/orsc.2025.21838
+    note: Primärstudie, DOI 10.1287/orsc.2025.21838; verfügbaren Textumfang protokollieren. B04 und B05 sind keine zwei unabhängigen Studien.

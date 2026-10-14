@@ -104,7 +104,7 @@
         agent_profile_version_ref: profile.ref, skill_version_refs: profile.skill_version_refs || [],
         qualification_mode: (profile.qualification_status === "task_qualified" && (profile.qualified_task_classes || []).includes(window.CAMPUS_TASK_DEFAULTS.task_class)) ? "qualified" : "sandbox_experiment",
         routing_policy_ref: projectForm.dataset.policy });
-      await command("/projects/" + project.project_id + "/tasks", { task_need: need, budget: "1.00" });
+      await command("/projects/" + project.project_id + "/tasks", { task_need: need, budget: val(projectForm, "task_budget") || "1.00" });
       location.reload();
     } catch (e) { fail(projectForm, e); }
   });

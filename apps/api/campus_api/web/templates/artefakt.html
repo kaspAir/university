@@ -45,6 +45,11 @@
   <div class="label">Gegenprüfungen und Einwände</div>
   {% if c.reviews %}{% for v in c.reviews %}<div class="finding">Prüfbericht <span class="id">{{ v.review_report_id }}</span> · Prüfer {{ v.reviewer_canonical_model_id }} · Erzeuger {{ v.producer_canonical_model_id }} · <span class="tag tag-neutral">{{ v.verdict }}</span></div>{% endfor %}{% else %}<div class="empty">Keine Gegenprüfung: Prüfstatus offen.</div>{% endif %}
   {% for f in c.findings %}<div class="finding"><span class="id">{{ f.id }}</span> · <strong>{{ f.subject }}</strong> · Tragweite {{ f.severity }} · <span class="tag {% if f.status == 'open' %}tag-accent{% else %}tag-neutral{% endif %}">{{ f.status }}</span></div>{% endfor %}
+  {% set qs = [] %}{% set om = [] %}{% for r in c.runs %}{% for q in r.open_questions or [] %}{% if qs.append(q) %}{% endif %}{% endfor %}{% for o in r.omissions or [] %}{% if om.append(o) %}{% endif %}{% endfor %}{% endfor %}
+  <div class="label">Offene Untersuchungsfragen ({{ qs|length }})</div>
+  {% if qs %}<ul style="margin:4px 0 0;padding-left:18px">{% for q in qs %}<li style="font-size:13px;margin-bottom:4px">{{ q }}</li>{% endfor %}</ul>{% else %}<div class="empty">Keine offenen Fragen deklariert.</div>{% endif %}
+  <div class="label">Auslassungen ({{ om|length }})</div>
+  {% if om %}<ul style="margin:4px 0 0;padding-left:18px">{% for o in om %}<li style="font-size:13px;margin-bottom:4px">{{ o }}</li>{% endfor %}</ul>{% else %}<div class="empty">Keine Auslassungen deklariert.</div>{% endif %}
   <div class="label">Läufe und Herkunft</div>
   {% for r in c.runs %}<div class="finding"><span class="id">{{ r.run_attempt_id }}</span> · Aufgabe {{ r.task_id }} · Versuch {{ r.attempt_no }} · {{ r.end_reason or r.state }} · Route {{ r.routing_decision_id }}</div>{% endfor %}
   <div class="protocol-line" style="border-bottom:0;margin-top:14px">KI-Beteiligung: {{ c.declarations.ai_involvement }}{% if c.declarations.synthetic_content %} · <span class="tag tag-accent">enthält synthetische Inhalte</span>{% endif %}</div>
